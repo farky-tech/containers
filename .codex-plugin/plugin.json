@@ -1,0 +1,30 @@
+{
+  "name": "farky-memory-container",
+  "version": "0.2.0",
+  "license": "MIT",
+  "description": "Quiet-by-default capability container for agent skills, subagents, hooks, fallback reporting, and lightweight durable learning.",
+  "author": {
+    "name": "Farky"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "farky-memory-container",
+    "shortDescription": "Capability router and no-silent-fallback layer for coding agents.",
+    "longDescription": "farky-memory-container packages a lightweight agent memory and capability reflex: start prompts, skill routing, fallback reporting, session close, memory routing, subagent prompts, hook specs, and project templates. It is quiet during normal work and explicit when a planned capability cannot run.",
+    "developerName": "Farky",
+    "category": "Productivity",
+    "capabilities": [
+      "Capability routing",
+      "No silent fallback",
+      "Session close",
+      "Memory routing",
+      "Skill authoring",
+      "Using contAIner (engine vs. memory guide)",
+      "Capability audit"
+    ],
+    "defaultPrompt": [
+      "Use contAIner quietly; report only real fallback.",
+      "Audit contAIner capability routing and capability drift."
+    ]
+  }
+}

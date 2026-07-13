@@ -1,0 +1,14 @@
+{
+  "name": "fmc",
+  "description": "FMC (farky-memory-container) — portable memory container for AI coding agents. This repo is both the plugin and its own marketplace.",
+  "owner": {
+    "name": "Farky"
+  },
+  "plugins": [
+    {
+      "name": "farky-memory-container",
+      "source": "./",
+      "description": "Portable memory container (brain-in-a-box) for AI coding agents."
+    }
+  ]
+}

@@ -1,0 +1,206 @@
+name: farky-memory-container
+# version: single source of truth = .claude-plugin/plugin.json. Do NOT duplicate the version here —
+# a version in multiple places is a drift surface (§6g). The manifest neither carries nor reads it (verified by grep).
+status: pre-release   # field-tested on 10+ internal instances; public GitHub release in preparation (0.1.34)
+principle: "Silent work is good; silent fallback is forbidden."
+runtime:
+  codex:
+    active:
+      - skills
+    manual_tooling:
+      - project-template-script
+    specs_only:
+      - hooks
+      - subagents
+    note: "Codex plugin validation loads skills. Hook and subagent files are prompt/spec assets unless a host adapter installs them."
+  claude-code:
+    active_after_adapter:
+      - hooks
+      - subagent-prompts
+      - project-template
+    note: "Claude Code needs adapter installation into .claude/settings.json and .claude/agents."
+capabilities:
+  skills:
+    - name: capability-routing
+      trigger: "Explicit container request, container-file work, review/audit/close/memory/fallback task, or project memory/ when continuity matters. Absorbs former trigger-calibration + runtime-capability-map."
+      quiet: true
+    - name: no-silent-fallback
+      trigger: "Expected active or adapter-installed capability cannot run, is replaced, weakened, skipped, or refused."
+      quiet: false
+    - name: session-close
+      trigger: "Handoff, multi-step work, fallback, durable learning, direction change, explicit close, or incomplete TodoWrite ledger."
+      quiet: false
+    - name: memory-routing
+      trigger: "A fact, lesson, decision, preference, or procedure may be durable."
+      quiet: true
+    - name: skill-authoring
+      trigger: "Repeated fallback, explicit correction, confirmed capability gap, or high-return workflow should become reusable."
+      quiet: false
+    - name: using-container
+      trigger: "Adopting, installing, tuning, upgrading, or modifying this plugin; or unsure where own memory belongs vs. where to propose a source change. Explains the engine/memory split and the contribution path."
+      quiet: false
+    - name: capability-audit
+      trigger: "Capabilities are forgotten, routing is noisy, fallback repeats, or the project's container files drift."
+      quiet: false
+  prompts:
+    - prompts/start.md
+    - prompts/prompt-router.md
+    - prompts/fallback-report.md
+    - prompts/close.md
+    - prompts/capability-gap.md
+  hook_specs:
+    - hooks/session-start.md
+    - hooks/user-prompt-submit.md
+    - hooks/post-tool-use.md
+    - hooks/stop.md
+    - hooks/session-end.md
+    - hooks/pre-compact.md
+  subagent_prompts:
+    - subagents/fmc-close.md
+    - subagents/fmc-fallback-review.md
+    - subagents/fmc-janitor.md
+storage:
+  project_template: templates/memory-folder
+  fallback_log: memory/fallbacks.md
+  todo_ledger: memory/todo.md
+  capability_index: memory/CAN.md
+  durable_knowledge: memory/KNOWLEDGE.md  # ONE store for lesson/decision/procedure blocks (kind:-tagged; consolidated 0.1.24 — the old pouceni/rozhodnuti/postupy genre files no longer ship)
+  session_journal: memory/session.md   # raw black box of the live session; distilled at close into log.md
+install:
+  default_mode: merge
+  destructive_mode: "--force with timestamped backup"
+  dry_run: "--dry-run"
+tests:
+  installer: tests/test_install_project_template.sh
+  backbone: tests/test_backbone_scripts.sh
+  close_state: tests/test_close_state.sh   # 22 fixtures: init/janitor, session_id resolution (stdin/env/explicit/hash), UNCLOSED marker, ledger gate, boot-recovery FIFO + per-SID receipt, concurrency (LOOP gate F3 + Stop-nag/--check F5 tests removed)
+  brain_health: tests/test_brain_health.sh # 7 fixtures (F4): --report metric table + date, --due-check cadence (none/fresh/6d/10d), UNCLOSED count
+  capability_report: tests/test_capability_report.sh # 7 fixtures: offered-from-fragment SSOT, wired detection, startup silent/surface, close + ADOPTION line, no-fragment safe, settings.local
+  scenarios: tests/scenarios/README.md
+backbone_scripts:
+  # SCRIPTED capability layer — deterministic, idempotent, atomic, host-agnostic CLIs.
+  lib: scripts/lib/hermes_blocks.sh
+  scripts:
+    - scripts/fallback_log.sh      # -> memory/fallbacks.md
+    - scripts/ledger_carry.sh      # -> memory/todo.md
+    - scripts/memory_route.sh      # -> memory/CAN.md (kind=fact) | memory/KNOWLEDGE.md (lesson|calibration|decision|procedure), approval-gated; kind=calibration has a hard "boundary:" gate (scoped correction; origin cc_hermy)
+    - scripts/session_note.sh      # -> memory/session.md (live session journal; --start / --note)
+    - scripts/session_close.sh     # reads memory/* incl. session.md; composes + distils handoff
+    - scripts/close_state.sh       # per-session close-debt tracker (self-improvement loop); called by SessionStart/Stop/SessionEnd hooks + close skill --close-done + boot-recovery. Non-blocking by design (|| true): an advisory loop hook must never crash a session; a failing tracker degrades to manual close (reflex rule).
+    - scripts/gen_agents.sh        # subagents/ + manifest -> agents/ (SSOT). NOTE: agents//subagents/ merge deferred (F3 plan-review: source:/subagent_prompts/adapter contracts = risk > cosmetic gain).
+    - scripts/brain_health.sh      # weekly brain-health observer (F4): --report writes memory/health/<date>.md; --due-check = SessionStart cadence advisory. Measures, never gates. Replaces the retired loop gate.
+    - scripts/state_guard.sh       # state guard: watches for drift of state artifacts from reality. --release-drift (plugin.json vs latest CHANGELOG block, MAINTAINER) · --book-drift (living book vs plugin.json, MAINTAINER) · --adopter-drift (adopter's active version vs max in marketplace cache, ADOPTER opt-in); index/STATE/vision discovery after layer 1 (repo order). Advisory — never blocks.
+    - scripts/capability_report.sh # adopter self-report: WIRED vs OFFERED FMC nerves. --startup = kernel advisory "what you're missing" (force-wired in hooks.json, read-only, quiet when all wired) · --close = report + ADOPTION-ready line. Closes FMC's OWN silent-fallback (an opt-in nerve never wired = invisible). Offered set derived from the adapter fragment (SSOT).
+    # (maintainer-only, NOT backbone / not shipped: scripts/watch.sh — source-curator drift tap
+    #  for ADOPTION/manifest triage; wired only in the source repo's own SessionStart, same
+    #  pattern as state_guard's maintainer modes. See watch.sh header. 0.1.33 audit.)
+    # --- boot nerves (info-injection at SessionStart / UserPromptSubmit) -----------------
+    # Promoted from cc_farky-local .claude/scripts (2026-07-06). Principle: info-injection > reminder
+    # — a cold instance receives orientation/capabilities as ready FACTS in context, not tasks to open
+    # files. OPT-IN: wired only via adapters/claude-code/settings-fragment.example.json, NEVER
+    # force-wired into hooks/hooks.json — adopters must not inherit invasive context injection across
+    # the trust boundary (§6d). They are declared here so the installer (--with-scripts, grep of SSOT)
+    # delivers them and so their existence is honest, not hidden.
+    - scripts/state_inject.sh       # SessionStart: inject memory/STATE.md (orientation, read-first)
+    - scripts/capability_inject.sh # SessionStart: inject FMC backbone + capability drift (newly gained/gone) + inbox reminder
+    - scripts/index_inject.sh      # SessionStart: inject folder-INDEX map (what I have where); default memory/ only, opt-in --whole-repo = whole repo (0.1.31); calls gen_index.sh
+    - scripts/gen_index.sh         # helper: folder -> INDEX manifest table (--merge-into keeps curated header; --table-only = table)
+    - scripts/journal_prompt.sh    # UserPromptSubmit: silently feed the user's prompt into memory/session.md (write-only); calls session_note.sh
+  migration: MIGRATION.md
+# Claude Code binding — SSOT for the Claude plugin files.
+# Codex-target binding lives separately in .codex-plugin/plugin.json (one container, two thin manifests).
+# capability-audit reads the declared lists below and compares them to disk + runtime; declared != actual = DRIFT.
+claude_binding:
+  plugin:
+    name: farky-memory-container
+    # version: single source = plugin.json (do not duplicate — drift surface, §6g)
+    description: "Quiet-by-default capability container: skill routing, no-silent-fallback discipline, session ledger, and capability-drift audit for Claude Code."
+  hooks:
+    # Only status=active hooks are emitted into hooks/hooks.json. spec-only are declared, not wired (honest capability map, not silent omission).
+    - event: SessionStart
+      status: active
+      purpose: "Inject the kernel sentinel + pointer to project memory/MEMORY.md (<600 tokens). Must never block when the memory/ folder is absent. (Self-improvement loop: may also init close_state tracking — opt-in.)"
+      source_spec: hooks/session-start.md
+    - event: UserPromptSubmit
+      status: spec-only
+      reason: "Advisory delivery; wiring as a command hook is noisy. Routed via capability-routing skill instead."
+      source_spec: hooks/user-prompt-submit.md
+    - event: PostToolUse
+      status: spec-only
+      reason: "Advisory delivery; handled by no-silent-fallback skill on real fallback, not by a blanket hook."
+      source_spec: hooks/post-tool-use.md
+    - event: Stop
+      status: retired
+      reason: "RETIRED F4 (0.1.27): the Stop close-debt nag (close_state.sh --check) is UNWIRED. It was a leftover from the gate era — it never enforced (close still died 8–11 July with it active) and it misfired mid-work (the journal only logs user prompts, so long work turns read as idle). Its job is covered without nagging: SessionEnd leaves an UNCLOSED marker → boot-recovery surfaces it → auto-recovery. The --check mode was fully REMOVED from close_state.sh in F5 (0.1.28) — this entry stays as the dated record; do not wire a Stop hook (see hooks/stop.md)."
+      source_spec: hooks/stop.md
+    - event: SessionEnd
+      status: spec-only
+      reason: "Finalize close-debt on real session end (close_state.sh --session-end): leave an UNCLOSED marker or clear. Side-effects only; cannot do the main-head close. Opt-in via adapters/ settings fragment."
+      source_spec: hooks/session-end.md
+    - event: PreCompact
+      status: spec-only
+      reason: "Context-loss guard: nudge to flush the live thread to disk before compaction. Non-blocking. Opt-in via adapters/ settings fragment."
+      source_spec: hooks/pre-compact.md
+  agents:
+    # Generated into agents/<name>.md by scripts/gen_agents.sh = YAML frontmatter
+    # (below) + body sourced verbatim from subagents/<name>.md. The verifier checks
+    # byte-equality of the generated output, so tools here must match what the body needs.
+    - name: fmc-close
+      description: "Close-drafter: do all mechanical close work and hand the head a finished DRAFT (STATE/sessions/log/ledger) to approve. Two modes — NORMAL (current session) and AUTO <SID> (advisory recovery: reconstruct an unclosed prior session from its marker ts-range). Surfaces retro candidates; never does the retro itself."
+      tools: [Read, Bash, Write, Edit]
+      source: subagents/fmc-close.md
+    - name: fmc-fallback-review
+      description: "Review the fallback log and turn recurring fallbacks into routed capability proposals. Use when fallbacks recur."
+      tools: [Read, Bash, Write]
+      source: subagents/fmc-fallback-review.md
+    - name: fmc-janitor
+      description: "Weekly brain-health observer (F4): run brain_health.sh, read the report, and surface consolidation PROPOSALS — ledger triage, KNOWLEDGE dedup, lesson promotion to CLAUDE.md/skills, archive rotation, drift. Measures and proposes; never gates, never writes governance silently. Replaces the retired loop gate with observation."
+      tools: [Read, Bash, Write, Edit]
+      source: subagents/fmc-janitor.md
+    # 0.1.24 (audit F0): fmc-capability-auditor + fmc-skill-curator RETIRED — across the
+    # whole history they never once ran (PRODUCTBOOK debt #5; the auditor duplicated the direct
+    # call to capability_audit.sh, and the curator role is carried by the skill-sweep checklist).
+  verify:
+    # capability-audit (scripts/capability_audit.sh) classifies each declared capability and flags drift.
+    declared_skills_from: capabilities.skills          # names under capabilities.skills[].name
+    declared_agents_from: claude_binding.agents         # names under claude_binding.agents[].name
+    declared_hooks_from: claude_binding.hooks           # events under claude_binding.hooks[] with status
+    runtime_checks:
+      - "skills/*/SKILL.md present for each declared skill"
+      - "agents/<name>.md present for each declared agent"
+      - "hooks/hooks.json contains exactly the declared status=active hook events"
+      - "agents/ byte-matches scripts/gen_agents.sh --check output (no hand-drift)"
+      - "each edge below: source file references the target script (SCRIPTED, not PROSE)"
+    output_classes: [active, spec-only, missing, drift]
+
+# Interop graph (R6) — machine-checkable wiring. The verifier reads each edge and
+# classifies it: SCRIPTED (source file actually calls the target script), PROSE
+# (edge declared but source does not reference it) or BROKEN (target script absent).
+# interop_score = counts of AUTO (wired hooks) / SCRIPTED / PROSE / BROKEN.
+# from: skill/<name> -> skills/<name>/SKILL.md ; agent/<name> -> agents/<name>.md
+# to:   script/<file> -> scripts/<file>
+edges:
+  - { from: skill/memory-routing,            to: script/memory_route.sh }
+  - { from: skill/no-silent-fallback,        to: script/fallback_log.sh }
+  # v2: the drafter (agent/fmc-close) owns the mechanics; the skill body path-qualifies only the
+  # head-side calls (retro win / commit durable / gate). session_close/ledger_carry/fallback moved
+  # to agent/fmc-close edges below; the loop edge is gone (v2 close has no loop step — loop retiring).
+  - { from: skill/session-close,             to: script/memory_route.sh }
+  - { from: skill/session-close,             to: script/close_state.sh }
+  - { from: skill/capability-routing,        to: script/memory_route.sh }
+  - { from: skill/capability-routing,        to: script/fallback_log.sh }
+  - { from: skill/capability-routing,        to: script/session_close.sh }
+  - { from: skill/capability-audit,          to: script/capability_audit.sh }
+  - { from: agent/fmc-close,              to: script/session_close.sh }
+  - { from: agent/fmc-close,              to: script/ledger_carry.sh }
+  - { from: agent/fmc-close,              to: script/memory_route.sh }
+  - { from: agent/fmc-close,              to: script/fallback_log.sh }
+  - { from: agent/fmc-close,              to: script/close_state.sh }
+  - { from: agent/fmc-fallback-review,    to: script/memory_route.sh }
+  - { from: agent/fmc-fallback-review,    to: script/fallback_log.sh }
+  - { from: agent/fmc-janitor,            to: script/brain_health.sh }
+  - { from: agent/fmc-janitor,            to: script/ledger_carry.sh }
+  - { from: agent/fmc-janitor,            to: script/capability_audit.sh }
+  - { from: script/brain_health.sh,       to: script/capability_audit.sh }
+  # script->script wiring (handoff preview); verifier accepts bare-name refs here
+  - { from: script/session_close.sh,      to: script/ledger_carry.sh }

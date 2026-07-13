@@ -1,0 +1,45 @@
+{
+  "_comment": "OPT-IN fragment. Paste into YOUR .claude/settings.json (hooks-only file). PATHS (0.1.33): engine calls resolve via ${CLAUDE_PLUGIN_ROOT} (set automatically for marketplace-cache installs — the public default, no editing needed) and FALL BACK to ${CLAUDE_PROJECT_DIR}/pluginy/farky-memory-container for an in-repo fork; if your fork lives elsewhere, change ONLY that fallback segment on the engine lines. Memory paths stay project-relative — replace /memory with YOUR memory-dir consistently on ALL lines (a mismatched memory-dir on even one line splits the close-loop state from the injectors). Layers: (A) advisory echoes — harmless; (B) self-improvement close-loop (SessionStart init + boot-recovery / SessionEnd finalize / PreCompact guard) — invasive, writes memory-state under memory-dir; boot-recovery surfaces any UNCLOSED prior-session marker as a must-do-first advisory (run /close --auto <SID>), read-only, silent when none; (C) boot nerves (info-injection): state_inject/capability_inject/index_inject at SessionStart inject orientation + capability drift + folder-index map as ready facts, and journal_prompt at UserPromptSubmit silently feeds each prompt into memory/session.md (write-only); (D) drift warnings — adopter-drift (0.1.18) warns when your ACTIVE plugin version lags the newest in the marketplace cache (cache installs only) and fork-drift warns when an in-repo fork has fallen behind its source (reads memory-dir/.fmc-source; no-op for cache installs). None of this is force-wired into hooks/hooks.json — it crosses the trust boundary (invasive). If your settings.json uses bypassPermissions/broad allow-list, the self-mod classifier blocks editing it — put hooks in settings.local.json (hooks-only) instead.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          { "type": "command", "command": "echo 'FMC active (farky-memory-container). Silent work is good; silent fallback is forbidden. Read memory/MEMORY.md if present.'" },
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}/pluginy/farky-memory-container}/scripts/close_state.sh\" --memory-dir \"${CLAUDE_PROJECT_DIR:-.}/memory\" --init 2>/dev/null || true" },
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}/pluginy/farky-memory-container}/scripts/close_state.sh\" --memory-dir \"${CLAUDE_PROJECT_DIR:-.}/memory\" --boot-recovery 2>/dev/null || true" },
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}/pluginy/farky-memory-container}/scripts/brain_health.sh\" --memory-dir \"${CLAUDE_PROJECT_DIR:-.}/memory\" --due-check 2>/dev/null || true" },
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}/pluginy/farky-memory-container}/scripts/state_inject.sh\" --memory-dir \"${CLAUDE_PROJECT_DIR:-.}/memory\" 2>/dev/null || true" },
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}/pluginy/farky-memory-container}/scripts/capability_inject.sh\" --memory-dir \"${CLAUDE_PROJECT_DIR:-.}/memory\" 2>/dev/null || true" },
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}/pluginy/farky-memory-container}/scripts/index_inject.sh\" --memory-dir \"${CLAUDE_PROJECT_DIR:-.}/memory\" 2>/dev/null || true" },
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-/nonexistent}/scripts/state_guard.sh\" --fork-drift --marker \"${CLAUDE_PROJECT_DIR:-.}/memory/.fmc-source\" 2>/dev/null || true" },
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-/nonexistent}/scripts/state_guard.sh\" --adopter-drift --plugin-dir \"${CLAUDE_PLUGIN_ROOT:-}\" --cache-dir \"$(dirname \"${CLAUDE_PLUGIN_ROOT:-/x}\")\" 2>/dev/null || true" }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}/pluginy/farky-memory-container}/scripts/journal_prompt.sh\" --memory-dir \"${CLAUDE_PROJECT_DIR:-.}/memory\" 2>/dev/null || true" }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "*",
+        "hooks": [
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}/pluginy/farky-memory-container}/scripts/close_state.sh\" --memory-dir \"${CLAUDE_PROJECT_DIR:-.}/memory\" --session-end 2>/dev/null || true" }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          { "type": "command", "command": "echo 'FMC PreCompact: flush the live thread to memory/session.md and key orientation to memory/STATE.md before the window rolls — memory must not hang on the context window.'" }
+        ]
+      }
+    ]
+  }
+}
