@@ -3,6 +3,16 @@
 Engine version history. Version = single source of truth in `.claude-plugin/plugin.json`.
 Newest first. Adopter-action detail → `MIGRATION.md`.
 
+## 0.3.3 — session close reads the canonical KNOWLEDGE store
+
+Found during a real adopter migration off legacy genre files: `memory_route.sh` had been writing
+lessons and decisions into the canonical `KNOWLEDGE.md`, but `session_close.sh` still counted the
+removed `lessons.md`/`decisions.md` — a brain holding 56 atoms reported zero at close.
+`session_close.sh` now counts `kind=lesson` / `kind=decision` blocks from `KNOWLEDGE.md`, with a
+fail-honest fallback to a single legacy genre file for un-migrated forks. New regression test
+creates both kinds through the approved `memory_route.sh` path and asserts exact close counts.
+**Adopter action:** refresh the engine (`install_project_template.sh --refresh-scripts <project>`).
+
 ## 0.3.2 — recall fires by itself; PENDING decisions surface every boot
 
 Two new **opt-in** nerves close the "the memory system lets things slip" gap:

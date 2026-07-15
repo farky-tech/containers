@@ -2,7 +2,7 @@
 # session_close.sh — compose a structured close/handoff summary from memory/ files.
 #
 # Backbone script (SCRIPTED). Read-only by default: reads memory/{todo,fallbacks,
-# lessons,decisions}.md and prints a deterministic handoff block to stdout (open
+# KNOWLEDGE,session}.md and prints a deterministic handoff block to stdout (open
 # counts, recent entries). The fmc-close subagent calls this instead of
 # free-forming a summary. With --carry it additionally persists open items passed
 # on stdin via ledger_carry.sh (idempotent).
@@ -33,27 +33,37 @@ while [ $# -gt 0 ]; do
 done
 
 if [ ! -d "$memory_dir" ]; then
-  echo "session_close: hermes dir not found: $memory_dir" >&2
+  echo "session_close: memory dir not found: $memory_dir" >&2
   exit 1
 fi
 
 todo="$memory_dir/todo.md"
 fb="$memory_dir/fallbacks.md"
-les="$memory_dir/lessons.md"
-dec="$memory_dir/decisions.md"
+knowledge="$memory_dir/KNOWLEDGE.md"
+legacy_les="$memory_dir/lessons.md"
+legacy_dec="$memory_dir/decisions.md"
+[ -f "$legacy_les" ] || legacy_les="$memory_dir/pouceni.md"
+[ -f "$legacy_dec" ] || legacy_dec="$memory_dir/rozhodnuti.md"
 sess="$memory_dir/session.md"
 
 # Open to-do count — delegates to the shared, fenced/indent-aware definition in the
 # lib so this handoff count and the close_state ledger gate never disagree.
 count_open_todo() { hermes_count_open_todo "$1"; }
 
-# Count all canonical blocks per file (kind label varies: lesson/decision from
-# migration, fact/procedure from memory_route) — the file is the category.
+# KNOWLEDGE.md is the canonical shared store; kind distinguishes lessons and
+# decisions. Fall back to one legacy genre file only when KNOWLEDGE.md does not
+# exist, so an upgraded-but-not-canonicalized adopter stays readable without
+# double-counting entries copied into both stores.
 open_todo="$(count_open_todo "$todo")"
 open_fb="$(hermes_count_open_fallbacks "$fb")"
 fb_blocks="$(hermes_count_blocks "$fb" fallback)"
-les_blocks="$(hermes_count_blocks "$les")"
-dec_blocks="$(hermes_count_blocks "$dec")"
+if [ -f "$knowledge" ]; then
+  les_blocks="$(hermes_count_blocks "$knowledge" lesson)"
+  dec_blocks="$(hermes_count_blocks "$knowledge" decision)"
+else
+  les_blocks="$(hermes_count_blocks "$legacy_les")"
+  dec_blocks="$(hermes_count_blocks "$legacy_dec")"
+fi
 
 carry_status="n/a"
 if [ "$carry" -eq 1 ] && [ ! -t 0 ]; then
@@ -130,7 +140,7 @@ Next load: read memory/STATE.md (orientation, read-first), pull the open items a
 EOF
 
 # Legacy compat hint (R10): warn if files still hold un-migrated entries.
-for f in "$todo" "$fb" "$les" "$dec"; do
+for f in "$todo" "$fb" "$knowledge" "$legacy_les" "$legacy_dec"; do
   if hermes_has_legacy_entries "$f"; then
     echo "session_close: note — $f has legacy (## date) entries not in canonical blocks; see MIGRATION.md" >&2
   fi

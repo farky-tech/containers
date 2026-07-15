@@ -231,6 +231,9 @@ hc="$work/c1"; mkdir -p "$hc"
 out="$("$scripts/session_close.sh" --memory-dir "$hc" 2>/dev/null)"
 check "close prints handoff header" 'printf "%s" "$out" | grep -q "Session close — container handoff"'
 check "close reports open todo count" 'printf "%s" "$out" | grep -q "Open to-do items: 1"'
+out_knowledge="$("$scripts/session_close.sh" --memory-dir "$hm" 2>/dev/null)"
+check "close counts lessons from canonical KNOWLEDGE.md" 'printf "%s" "$out_knowledge" | grep -q "Lesson blocks: 1"'
+check "close counts decisions from canonical KNOWLEDGE.md" 'printf "%s" "$out_knowledge" | grep -q "Decision blocks: 1"'
 hc_doc="$work/c-doc"; mkdir -p "$hc_doc"
 printf '# Todo\n\n```txt\n- [ ] Item:\n```\n' > "$hc_doc/todo.md"
 printf '# Fallbacks\n\n```txt\nStatus: open | closed\n```\n' > "$hc_doc/fallbacks.md"
