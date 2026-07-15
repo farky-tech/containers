@@ -187,6 +187,19 @@ case "$mode" in
       [ -n "$d" ] || continue
       rmdir "$d" 2>/dev/null && echo "close_state: janitor removed stale lock: $(basename "$d")" >&2
     done < <(find "$state_dir" -maxdepth 1 -name '*.lock' -type d -mmin +60 2>/dev/null)
+    # Recall-nerve housekeeping (0.3.2) — deliberately OFF the per-prompt hot path, so it
+    # lives in this janitor moment: per-session dedupe files expire after 7 days; the
+    # telemetry log rotates by size (keep newest tail; brain_health reads a 7-day window).
+    rn_state="$memory_dir/.recall-state"
+    if [ -d "$rn_state" ]; then
+      find "$rn_state" -maxdepth 1 -name 'seen-*' -type f -mtime +7 -delete 2>/dev/null || true
+      find "$rn_state" -maxdepth 1 -name '.write.lock' -type d -mmin +60 -exec rmdir {} \; 2>/dev/null || true
+    fi
+    rn_log="$memory_dir/.recall-hits.log"
+    if [ -f "$rn_log" ] && [ "$(wc -c < "$rn_log" 2>/dev/null | tr -d '[:space:]')" -gt 65536 ]; then
+      tail -n 200 "$rn_log" > "$rn_log.tmp.$$" 2>/dev/null && mv "$rn_log.tmp.$$" "$rn_log" 2>/dev/null || rm -f "$rn_log.tmp.$$" 2>/dev/null
+      echo "close_state: janitor rotated .recall-hits.log (>64KB, kept newest 200 lines)" >&2
+    fi
     cs_write started_at="$ts" || { echo "close_state: init write failed" >&2; exit 1; }
     echo "close_state: init $key" >&2
     ;;

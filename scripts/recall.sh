@@ -92,4 +92,12 @@ else
 fi
 
 [ "$printed" -eq 1 ] || { echo "recall: nothing matched" >&2; exit 2; }
+
+# Telemetry (consumed side of the recall funnel, 0.3.2): logged ONLY on success, so the
+# emitted/consumed comparison in brain_health never counts a failed drill as consumption.
+# Honest label: this records ALL successful recalls, not only pointer-driven ones.
+what=""
+if [ "${#keys[@]}" -gt 0 ]; then what="$(IFS=,; printf '%s' "${keys[*]}")"; fi
+if [ -n "$query" ]; then what="q:$(printf '%s' "$query" | tr ' \t' '__' | cut -c1-80)"; fi
+printf '%s\tconsumed\t-\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${what:--}" >> "$memory_dir/.recall-hits.log" 2>/dev/null || true
 exit 0

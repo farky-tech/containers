@@ -40,6 +40,13 @@ backbone scripts and act on their output. You do NOT do the retro (that is the h
 3. For each durable lesson/decision, **propose** it (does NOT write without approval):
    `${CLAUDE_PLUGIN_ROOT}/scripts/memory_route.sh --text "<note>" --kind lesson|decision --memory-dir ./memory`
    Surface the proposals; the HEAD persists them with `--commit --approved-by <who> --reason <why>`.
+   Durable **facts** count too (account names, URLs, artifact locations) — `--kind fact`; a fact
+   left only in chat/STATE is unrecallable next session.
+3b. **Any proposal/decision waiting on a HUMAN goes in as a PENDING ledger item, never a plain
+   carry line** (passive carry is where approvals die):
+   `... ledger_carry.sh --memory-dir ./memory --item "PENDING(<owner>): <WHAT> / <WHY them> /
+   <impact of yes-no> (proposed YYYY-MM-DD)"` — the `pending_inject` boot nerve announces these
+   EVERY session start until the human resolves them.
 4. For each real fallback, persist via `${CLAUDE_PLUGIN_ROOT}/scripts/fallback_log.sh ...` (see no-silent-fallback).
 5. **Write `memory/STATE.md` (overwrite, not append) — the load-bearing handoff.** A chat summary dies
    with the session; STATE.md is what the next boot reads FIRST: live thread (what we're really on +

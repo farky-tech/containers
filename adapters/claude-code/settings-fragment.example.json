@@ -13,6 +13,7 @@
           { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}/pluginy/farky-memory-container}/scripts/capability_inject.sh\" --memory-dir \"${CLAUDE_PROJECT_DIR:-.}/memory\" 2>/dev/null || true" },
           { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}/pluginy/farky-memory-container}/scripts/index_inject.sh\" --memory-dir \"${CLAUDE_PROJECT_DIR:-.}/memory\" 2>/dev/null || true" },
           { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}/pluginy/farky-memory-container}/scripts/rejstrik_inject.sh\" --memory-dir \"${CLAUDE_PROJECT_DIR:-.}/memory\" 2>/dev/null || true" },
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}/pluginy/farky-memory-container}/scripts/pending_inject.sh\" --memory-dir \"${CLAUDE_PROJECT_DIR:-.}/memory\" 2>/dev/null || true" },
           { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-/nonexistent}/scripts/state_guard.sh\" --fork-drift --marker \"${CLAUDE_PROJECT_DIR:-.}/memory/.fmc-source\" 2>/dev/null || true" },
           { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-/nonexistent}/scripts/state_guard.sh\" --adopter-drift --plugin-dir \"${CLAUDE_PLUGIN_ROOT:-}\" --cache-dir \"$(dirname \"${CLAUDE_PLUGIN_ROOT:-/x}\")\" 2>/dev/null || true" }
         ]
@@ -22,7 +23,8 @@
       {
         "matcher": "*",
         "hooks": [
-          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}/pluginy/farky-memory-container}/scripts/journal_prompt.sh\" --memory-dir \"${CLAUDE_PROJECT_DIR:-.}/memory\" 2>/dev/null || true" }
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}/pluginy/farky-memory-container}/scripts/journal_prompt.sh\" --memory-dir \"${CLAUDE_PROJECT_DIR:-.}/memory\" 2>/dev/null || true" },
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}/pluginy/farky-memory-container}/scripts/recall_inject.sh\" --memory-dir \"${CLAUDE_PROJECT_DIR:-.}/memory\" 2>/dev/null || true" }
         ]
       }
     ],

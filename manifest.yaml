@@ -106,9 +106,11 @@ backbone_scripts:
     - scripts/index_inject.sh      # SessionStart: inject folder-INDEX map (what I have where); default memory/ only, opt-in --whole-repo = whole repo (0.1.31); calls gen_index.sh
     - scripts/gen_index.sh         # helper: folder -> INDEX manifest table (--merge-into keeps curated header; --table-only = table)
     - scripts/journal_prompt.sh    # UserPromptSubmit: silently feed the user's prompt into memory/session.md (write-only); calls session_note.sh
-    - scripts/gen_rejstrik.sh      # helper: knowledge blocks -> _rejstrik.md atom registry (self-regen from data; default importance by kind)
+    - scripts/gen_rejstrik.sh      # helper: knowledge blocks -> _rejstrik.md atom registry (self-regen from data; default importance by kind); --tsv = machine contract for tools
     - scripts/rejstrik_inject.sh   # SessionStart: regenerate + inject the atom registry (what I know); calls gen_rejstrik.sh
-    - scripts/recall.sh            # retrieval: drill one atom out of the cold store by <id> or --query "words" (a capability, not a gate)
+    - scripts/recall_inject.sh     # UserPromptSubmit (Claude host, 0.3.2): match the prompt against a FRESH atom registry (gen_rejstrik --tsv) and inject POINTERS to matching atoms (BM25 + CZ fold/stem, anti-noise gates, per-session dedupe, fail-closed, telemetry). Kill switch HERMES_RECALL_OFF=1. NOT dispatched on the Codex host (trust boundary — adapter opt-in only).
+    - scripts/pending_inject.sh    # SessionStart (0.3.2): announce open "PENDING(<owner>):" ledger items LOUDLY every boot until the human resolves them (fence-aware, bounded output, read-only). Kill switch HERMES_PENDING_OFF=1.
+    - scripts/recall.sh            # retrieval: drill one atom out of the cold store by <id> or --query "words" (a capability, not a gate); logs the consumed side of the recall funnel (0.3.2)
     - scripts/lint_memory.sh       # advisory hygiene over atoms (dup id / bad importance-origin / no title / dead [[id]] link); feeds brain_health
   migration: MIGRATION.md
 # Claude Code binding — SSOT for the Claude plugin files.

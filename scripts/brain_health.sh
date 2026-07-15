@@ -92,6 +92,26 @@ drift="n/a"
 if [ -n "$plugin_dir" ] && [ -f "$plugin_dir/scripts/capability_audit.sh" ]; then
   drift="$(bash "$plugin_dir/scripts/capability_audit.sh" 2>/dev/null | sed -n 's/^Drift count: \([0-9]*\).*/\1/p' | head -n1 || echo '?')"
 fi
+# Recall funnel, last 7 days (0.3.2) — HONEST labels: "emitted" = pointer candidates injected
+# by recall_inject; "consumed" = ALL successful recall.sh runs (not only pointer-driven; no
+# event pairing by design — canary telemetry, not accounting). Overlap = emitted slugs that
+# also appear in any consumed entry within the window (slug-level, order-free).
+recall_emitted=0; recall_consumed=0; recall_overlap="n/a"
+rn_log="$memory_dir/.recall-hits.log"
+if [ -f "$rn_log" ]; then
+  cutoff="$(date -u -v-7d +%Y-%m-%d 2>/dev/null || date -u -d '7 days ago' +%Y-%m-%d 2>/dev/null || echo '')"
+  recall_emitted="$(awk -F'\t' -v c="$cutoff" 'c=="" || substr($1,1,10)>=c { if ($2=="emitted") n++ } END{print n+0}' "$rn_log" 2>/dev/null || echo 0)"
+  recall_consumed="$(awk -F'\t' -v c="$cutoff" 'c=="" || substr($1,1,10)>=c { if ($2=="consumed") n++ } END{print n+0}' "$rn_log" 2>/dev/null || echo 0)"
+  if [ "$recall_emitted" -gt 0 ] 2>/dev/null; then
+    recall_overlap="$(awk -F'\t' -v c="$cutoff" '
+      c=="" || substr($1,1,10)>=c {
+        if ($2=="emitted")  { n=split($4,a,","); for(i=1;i<=n;i++) if(a[i]!="") em[a[i]]=1 }
+        if ($2=="consumed") { n=split($4,a,","); for(i=1;i<=n;i++) if(a[i]!="") co[a[i]]=1 }
+      }
+      END { hit=0; tot=0; for (s in em) { tot++; if (s in co) hit++ } printf "%d/%d", hit, tot }
+    ' "$rn_log" 2>/dev/null || echo 'n/a')"
+  fi
+fi
 
 flag() { # value threshold -> emoji; args: value amber red  (>=amber -> 🟠, >=red -> 🔴, else 🟢)
   local v="$1" a="$2" r="$3"; [ "$v" = "?" ] && { printf '⚪'; return; }
@@ -116,6 +136,9 @@ report="$(cat <<EOF
 | Atom lint issues | $lint_issues | $(flag "$lint_issues" 1 5) |
 | Session journal (blocks) | $sess_entries | $(flag "$sess_entries" 60 120) |
 | Engine drift (capability_audit) | $drift | $drift_flag |
+| Recall pointers emitted (7d) | $recall_emitted | ⚪ |
+| Recall runs, all (7d) | $recall_consumed | ⚪ |
+| Emitted atoms later recalled (7d) | $recall_overlap | ⚪ |
 
 ## What to look at (fmc-janitor adds the proposals)
 - 🔴/🟠 rows above = action candidates (catch up sessions · rewrite STATE · triage todo · resolve

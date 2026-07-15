@@ -96,11 +96,11 @@ if "$installer" --force "$project" >/tmp/memory-dir.out 2>/tmp/memory-dir.err; t
   fail "Expected directory conflict to fail"
 fi
 
-echo "test: --with-scripts installs the full 19-script backbone from the manifest"
+echo "test: --with-scripts installs the full 21-script backbone from the manifest"
 project="$tmp_root/full backbone project"
 "$installer" --create-target --with-scripts "$project" >/tmp/hermes-full-backbone.out
 backbone_count="$(find "$project/memory/scripts" -maxdepth 1 -name '*.sh' -type f | wc -l | tr -d ' ')"
-[ "$backbone_count" -eq 19 ] || fail "Expected 19 backbone scripts installed, got $backbone_count"
+[ "$backbone_count" -eq 21 ] || fail "Expected 21 backbone scripts installed, got $backbone_count"
 
 echo "test: generated CAN routes capability audit to plugin source, not a missing adopter script"
 assert_file_contains "$project/memory/CAN.md" 'installed `capability-audit` skill'

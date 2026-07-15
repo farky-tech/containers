@@ -3,6 +3,33 @@
 Engine version history. Version = single source of truth in `.claude-plugin/plugin.json`.
 Newest first. Adopter-action detail → `MIGRATION.md`.
 
+## 0.3.2 — recall fires by itself; PENDING decisions surface every boot
+
+Two new **opt-in** nerves close the "the memory system lets things slip" gap:
+
+- **`recall_inject.sh` (UserPromptSubmit, Claude Code host):** every prompt is matched against a
+  FRESH atom registry (`gen_rejstrik --tsv`, fail-closed on generation failure) — BM25 with Czech
+  diacritics folding + light stemming (Dolamic/Savoy), strict anti-noise gates (silence is the
+  default; precision over recall) — and matching atoms are injected as POINTERS (slug + one line +
+  "pull the atom BEFORE answering"). Per-session dedupe, both funnel sides logged to
+  `.recall-hits.log`, kill switch `HERMES_RECALL_OFF=1`. Deliberately NOT dispatched on the Codex
+  host (trust boundary — ask if you want it there).
+- **`pending_inject.sh` (SessionStart):** todo items written as `- [ ] PENDING(<owner>): what /
+  why-you / impact (proposed YYYY-MM-DD)` are announced EVERY boot until the human resolves them
+  (`ledger_carry --done` with the full item text). Fence-aware, bounded output (8 KB + overflow
+  row), read-only — a voice, not a gate (human-owned debt never blocks). Kill switch
+  `HERMES_PENDING_OFF=1`.
+- Supporting: `gen_rejstrik --tsv` machine contract (+ optional `tags:` frontmatter passthrough);
+  `recall.sh` logs the consumed side of the funnel (success only); `brain_health` reports the
+  recall funnel with honest labels (emitted / all recall runs / 7-day slug overlap);
+  `close_state --init` janitor expires per-session recall state (7 d) and rotates the telemetry
+  log (64 KB); the installer gitignores the new runtime files (`.recall-state/`,
+  `.recall-hits.log`). `session-close` skill + `fmc-close` drafter: proposals waiting on a human
+  become PENDING items, and durable FACTS (accounts, URLs) get atomized too — a fact that lives
+  only in chat is unrecallable next session.
+- Wiring: two new opt-in lines in `adapters/claude-code/settings-fragment.example.json`. Tests:
+  +19 (matcher golden fixture, concurrency, hostile session-id, C-locale, no-hang, 500-atom perf).
+
 ## 0.3.1 — slug + [[link]] layer; recall by human name
 
 Atoms are now addressable and linkable by a human **slug**, not just a hash id. `recall.sh <slug|id>`

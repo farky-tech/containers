@@ -48,8 +48,18 @@ in a subagent, not in the head's memory.
    - **Form-gate:** each note is a HOW-TO ("this is done thus"), never a complaint. Don't self-edit
      governance — surface a proposal (type · target · reason · text/diff · awaiting approval), or say
      "retro: nothing" (anti-spam: propose only on a repeatable pattern).
+   - **A proposal awaiting a HUMAN decision must NOT die as a passive carry line** (that's where
+     approvals go to die — next boot it's just one row in a list). Write it as a PENDING item:
+     `scripts/ledger_carry.sh --item "PENDING(<owner>): <WHAT I want> / <WHY you> / <impact of
+     yes-no> (proposed YYYY-MM-DD)"` — phrased humanly (what/why/impact), no tool-name shorthand.
+     The `pending_inject` boot nerve then announces it EVERY session start until the human
+     resolves it (`ledger_carry --done '<full item text>'`). Same for any decision explicitly
+     waiting on the human (direction picks, approval of canon/skill changes).
 4. **Persist approved durable learning:** `scripts/memory_route.sh --text "<note>" --kind lesson|decision
-   --commit --approved-by <who> --reason <why>`.
+   --commit --approved-by <who> --reason <why>`. **Facts too, not only lessons:** a durable fact that
+   surfaced this session (an account name, a URL, an artifact location — "which GitHub account hosts
+   the public repo") goes in as `--kind fact` — facts that stay only in chat/STATE are exactly the
+   ones the next instance cannot recall (proven live 2026-07-15).
 5. **Settle the close-debt tracker:** `scripts/close_state.sh --memory-dir ./memory --close-done --ledger-ok`
    (`--ledger-ok` asserts step 1's reconcile happened; session id resolves from `$CLAUDE_CODE_SESSION_ID`).
    Without this SessionEnd leaves an UNCLOSED marker that boot-recovery surfaces next start.

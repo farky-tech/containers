@@ -1,7 +1,7 @@
 {
   "name": "farky-memory-container",
   "description": "Quiet-by-default capability container: skill routing, no-silent-fallback discipline, session ledger, and capability-drift audit for Claude Code.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "license": "MIT",
   "author": {
     "name": "Farky"
