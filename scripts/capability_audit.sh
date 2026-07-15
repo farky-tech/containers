@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Audit declared container capabilities against the Claude Code plugin files.
+# Audit declared container capabilities against the Claude Code and Codex plugin files.
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 layout_override=""
@@ -123,6 +123,14 @@ agents_dir="$(resolve_path "$agents_dir_rel")"
 scripts_dir="$(resolve_path "$scripts_dir_rel")"
 hooks_json="$(resolve_path "$hook_config_rel")"
 
+codex_manifest="$plugin_root/.codex-plugin/plugin.json"
+codex_hooks_rel=""
+if [ -f "$codex_manifest" ]; then
+  codex_hooks_rel="$(sed -n 's/.*"hooks"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$codex_manifest" | head -n1)"
+fi
+codex_hooks_json=""
+[ -n "$codex_hooks_rel" ] && codex_hooks_json="$(resolve_path "$codex_hooks_rel")"
+
 scripts_ref="$scripts_dir_rel"
 case "$scripts_ref" in
   ./*) scripts_ref="${scripts_ref#./}" ;;
@@ -181,6 +189,20 @@ wired_hook_events() {
   ' "$hooks_json"
 }
 
+wired_codex_hook_events() {
+  if [ -z "$codex_hooks_json" ] || [ ! -f "$codex_hooks_json" ]; then
+    return
+  fi
+  awk '
+    /^    "[^"]+"[[:space:]]*:/ {
+      line = $0
+      sub(/^    "/, "", line)
+      sub(/".*/, "", line)
+      print line
+    }
+  ' "$codex_hooks_json"
+}
+
 declared_skills() {
   awk '
     /^capabilities:/ { in_capabilities = 1; next }
@@ -213,8 +235,32 @@ declared_agents() {
 declared_hooks() {
   awk '
     /^claude_binding:/ { in_binding = 1; next }
+    in_binding && /^[a-zA-Z_]+:/ { in_binding = 0; in_hooks = 0 }
     in_binding && /^  hooks:/ { in_hooks = 1; next }
     in_hooks && /^  agents:/ { in_hooks = 0 }
+    in_hooks && /^    - event:/ {
+      event = $0
+      sub(/^    - event:[[:space:]]*/, "", event)
+      gsub(/"/, "", event)
+    }
+    in_hooks && /^[[:space:]]+status:/ {
+      status = $0
+      sub(/^[[:space:]]+status:[[:space:]]*/, "", status)
+      gsub(/"/, "", status)
+      if (event != "") {
+        print event "|" status
+        event = ""
+      }
+    }
+  ' "$manifest"
+}
+
+declared_codex_hooks() {
+  awk '
+    /^codex_binding:/ { in_binding = 1; next }
+    in_binding && /^[a-zA-Z_]+:/ { in_binding = 0; in_hooks = 0 }
+    in_binding && /^  hooks:/ { in_hooks = 1; next }
+    in_hooks && /^  deliberately_unwired:/ { in_hooks = 0 }
     in_hooks && /^    - event:/ {
       event = $0
       sub(/^    - event:[[:space:]]*/, "", event)
@@ -305,11 +351,13 @@ status_lines="$(mktemp "${TMPDIR:-/tmp}/hermes-audit-status.XXXXXX")"
 skills_json="$(mktemp "${TMPDIR:-/tmp}/hermes-audit-skills.XXXXXX")"
 agents_json="$(mktemp "${TMPDIR:-/tmp}/hermes-audit-agents.XXXXXX")"
 hooks_json_lines="$(mktemp "${TMPDIR:-/tmp}/hermes-audit-hooks.XXXXXX")"
+codex_hooks_json_lines="$(mktemp "${TMPDIR:-/tmp}/hermes-audit-codex-hooks.XXXXXX")"
 global_json="$(mktemp "${TMPDIR:-/tmp}/hermes-audit-global.XXXXXX")"
 declared_hook_events_file="$(mktemp "${TMPDIR:-/tmp}/hermes-audit-declared-hooks.XXXXXX")"
+declared_codex_hook_events_file="$(mktemp "${TMPDIR:-/tmp}/hermes-audit-declared-codex-hooks.XXXXXX")"
 declared_skills_file="$(mktemp "${TMPDIR:-/tmp}/hermes-audit-declared-skills.XXXXXX")"
 declared_agents_file="$(mktemp "${TMPDIR:-/tmp}/hermes-audit-declared-agents.XXXXXX")"
-trap 'rm -f "$status_lines" "$skills_json" "$agents_json" "$hooks_json_lines" "$global_json" "$declared_hook_events_file" "$declared_skills_file" "$declared_agents_file"' EXIT
+trap 'rm -f "$status_lines" "$skills_json" "$agents_json" "$hooks_json_lines" "$codex_hooks_json_lines" "$global_json" "$declared_hook_events_file" "$declared_codex_hook_events_file" "$declared_skills_file" "$declared_agents_file"' EXIT
 
 drift_count=0
 
@@ -323,6 +371,7 @@ record_status() {
     skill) echo "$name|$status" >> "$skills_json" ;;
     agent) echo "$name|$status" >> "$agents_json" ;;
     hook) echo "$name|$status" >> "$hooks_json_lines" ;;
+    codex-hook) echo "$name|$status" >> "$codex_hooks_json_lines" ;;
   esac
   case "$status" in
     missing|DRIFT|DRIFT:*) drift_count=$((drift_count + 1)) ;;
@@ -396,6 +445,38 @@ done <<EOF_WIRED_HOOKS
 $(wired_hook_events)
 EOF_WIRED_HOOKS
 
+# Codex has its own packaged hooks file. Keep it independent from the Claude Code kernel
+# hook surface and audit its declared-vs-wired state with the same bidirectional discipline.
+while IFS='|' read -r event status; do
+  [ -n "$event" ] || continue
+  echo "$event" >> "$declared_codex_hook_events_file"
+  wired=0
+  if [ -n "$codex_hooks_json" ] && [ -f "$codex_hooks_json" ] \
+    && grep -q "\"$event\"" "$codex_hooks_json"; then
+    wired=1
+  fi
+  if [ "$status" = "active" ]; then
+    if [ "$wired" -eq 1 ]; then
+      record_status "codex-hook" "$event" "active"
+    else
+      record_status "codex-hook" "$event" "DRIFT: declared active but not wired"
+    fi
+  else
+    record_status "codex-hook" "$event" "DRIFT: unsupported declared status $status"
+  fi
+done <<EOF_CODEX_HOOKS
+$(declared_codex_hooks)
+EOF_CODEX_HOOKS
+
+while IFS= read -r wired_event; do
+  [ -n "$wired_event" ] || continue
+  if ! grep -qx "$wired_event" "$declared_codex_hook_events_file" 2>/dev/null; then
+    record_status "codex-hook" "$wired_event" "DRIFT: wired but not declared"
+  fi
+done <<EOF_WIRED_CODEX_HOOKS
+$(wired_codex_hook_events)
+EOF_WIRED_CODEX_HOOKS
+
 # Reverse (bidirectional) check for skills/agents: a file ON DISK not declared in the manifest
 # is drift — mirrors the "wired but not declared" hook check above. Plugin-internal scope only
 # (skills_dir/agents_dir resolved from manifest); host ~/.claude stays OUT OF SCOPE (note below).
@@ -461,6 +542,36 @@ $(grep -oE 'scripts/[A-Za-z0-9_]+\.sh' "$adapter_fragment" | sort -u)
 EOF_ADAPTER
 fi
 
+# Codex adapter integrity: the Codex manifest must resolve to its host-specific hooks file;
+# every dispatched backbone script must exist. Trust is runtime/user state and intentionally
+# outside this source audit; definition drift is fully in scope.
+if [ -n "$(declared_codex_hooks)" ]; then
+  if [ -z "$codex_hooks_rel" ]; then
+    record_status "adapter" ".codex-plugin hooks" "DRIFT: Codex hooks path missing from manifest"
+  elif [ ! -f "$codex_hooks_json" ]; then
+    record_status "adapter" "$codex_hooks_rel" "DRIFT: Codex hooks file missing"
+  else
+    record_status "adapter" "$codex_hooks_rel" "wired"
+  fi
+
+  codex_dispatch="$(resolve_path "adapters/codex/hook_dispatch.sh")"
+  if [ ! -f "$codex_dispatch" ]; then
+    record_status "adapter" "adapters/codex/hook_dispatch.sh" "DRIFT: Codex dispatcher missing"
+  else
+    while IFS= read -r script_name; do
+      [ -n "$script_name" ] || continue
+      if [ -f "$scripts_dir/$script_name" ]; then
+        record_status "adapter" "scripts/$script_name" "wired"
+      else
+        record_status "adapter" "scripts/$script_name" "DRIFT: Codex dispatcher references missing script"
+      fi
+    done <<EOF_CODEX_ADAPTER
+$(grep -oE 'run_script[[:space:]]+"[A-Za-z0-9_]+\.sh"' "$codex_dispatch" \
+  | sed -E 's/.*"([A-Za-z0-9_]+\.sh)"/\1/' | sort -u)
+EOF_CODEX_ADAPTER
+  fi
+fi
+
 # Global host-config drift (e.g. a global SessionStart hook naming agents that do
 # not exist in ~/.claude/agents/) is intentionally OUT OF SCOPE for this plugin
 # verifier. It cannot reliably parse arbitrary agent names from free-form hook
@@ -469,11 +580,11 @@ fi
 # host-config drift is handled explicitly outside the plugin.
 
 # ---- Interop graph (R6): classify declared edges, score wiring ----------------
-auto_count=0; scripted_count=0; prose_count=0; broken_count=0
+auto_count=0; codex_auto_count=0; scripted_count=0; prose_count=0; broken_count=0
 edge_json_lines="$(mktemp "${TMPDIR:-/tmp}/hermes-audit-edges.XXXXXX")"
 # Single cumulative trap: a second `trap … EXIT` OVERRIDES the first (audit 2026-07-11 —
 # the original override silently leaked declared_skills_file + declared_agents_file on every run).
-trap 'rm -f "$status_lines" "$skills_json" "$agents_json" "$hooks_json_lines" "$global_json" "$declared_hook_events_file" "$declared_skills_file" "$declared_agents_file" "$edge_json_lines"' EXIT
+trap 'rm -f "$status_lines" "$skills_json" "$agents_json" "$hooks_json_lines" "$codex_hooks_json_lines" "$global_json" "$declared_hook_events_file" "$declared_codex_hook_events_file" "$declared_skills_file" "$declared_agents_file" "$edge_json_lines"' EXIT
 
 # AUTO = hooks actually wired into hooks.json (real runtime triggers).
 while IFS= read -r wired_event; do
@@ -482,6 +593,13 @@ while IFS= read -r wired_event; do
 done <<EOF_AUTO
 $(wired_hook_events)
 EOF_AUTO
+
+while IFS= read -r wired_event; do
+  [ -n "$wired_event" ] || continue
+  codex_auto_count=$((codex_auto_count + 1))
+done <<EOF_CODEX_AUTO
+$(wired_codex_hook_events)
+EOF_CODEX_AUTO
 
 efirst=1
 while IFS=$'\t' read -r efrom eto; do
@@ -567,6 +685,7 @@ fi
 echo
 echo "Interop score (declared edges):"
 echo "- AUTO (wired hooks): $auto_count"
+echo "- AUTO Codex (wired hooks): $codex_auto_count"
 echo "- SCRIPTED (source calls script): $scripted_count"
 echo "- PROSE (declared, not wired): $prose_count"
 echo "- BROKEN (target/source missing): $broken_count"
@@ -587,11 +706,14 @@ printf ',\n'
 printf '  "hooks": '
 json_status_array "$hooks_json_lines" "event"
 printf ',\n'
+printf '  "codex_hooks": '
+json_status_array "$codex_hooks_json_lines" "event"
+printf ',\n'
 printf '  "global_drift": '
 json_string_array "$global_json"
 printf ',\n'
-printf '  "interop": {"auto":%s,"scripted":%s,"prose":%s,"broken":%s,"agents_gen":"%s","lapac_sync":"%s"},\n' \
-  "$auto_count" "$scripted_count" "$prose_count" "$broken_count" "$gen_status" "$lapac_sync"
+printf '  "interop": {"auto":%s,"codex_auto":%s,"scripted":%s,"prose":%s,"broken":%s,"agents_gen":"%s","lapac_sync":"%s"},\n' \
+  "$auto_count" "$codex_auto_count" "$scripted_count" "$prose_count" "$broken_count" "$gen_status" "$lapac_sync"
 printf '  "edges": ['
 cat "$edge_json_lines"
 printf '],\n'

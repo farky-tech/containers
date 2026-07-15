@@ -82,9 +82,11 @@ if [ -f "$stav" ]; then
 fi
 # Ledger / fallback / knowledge
 open_todo="$(hermes_count_open_todo "$memory_dir/todo.md" 2>/dev/null || echo 0)"
-open_fb=0; [ -f "$memory_dir/fallbacks.md" ] && open_fb="$(grep -c '^Status: open' "$memory_dir/fallbacks.md" 2>/dev/null || echo 0)"
+open_fb="$(hermes_count_open_fallbacks "$memory_dir/fallbacks.md" 2>/dev/null || echo 0)"
 znalost_blocks=0; [ -f "$memory_dir/KNOWLEDGE.md" ] && znalost_blocks="$(hermes_count_blocks "$memory_dir/KNOWLEDGE.md" 2>/dev/null || echo 0)"
 sess_entries=0; [ -f "$memory_dir/session.md" ] && sess_entries="$(hermes_count_blocks "$memory_dir/session.md" 2>/dev/null || echo 0)"
+# atom hygiene (advisory): dup ids, invalid importance/origin, missing title, dead [[link]]
+lint_issues="$(bash "$script_dir/lint_memory.sh" --memory-dir "$memory_dir" --quiet 2>/dev/null | sed -n 's/^lint_memory: \([0-9]*\).*/\1/p' | head -n1 || echo 0)"; lint_issues="${lint_issues:-0}"
 # Drift (optional — needs plugin-dir; MAINTAINER-side)
 drift="n/a"
 if [ -n "$plugin_dir" ] && [ -f "$plugin_dir/scripts/capability_audit.sh" ]; then
@@ -111,6 +113,7 @@ report="$(cat <<EOF
 | Open todo items | $open_todo | $(flag "$open_todo" 25 45) |
 | Open fallbacks | $open_fb | $(flag "$open_fb" 3 6) |
 | KNOWLEDGE blocks | $znalost_blocks | $(flag "$znalost_blocks" 45 70) |
+| Atom lint issues | $lint_issues | $(flag "$lint_issues" 1 5) |
 | Session journal (blocks) | $sess_entries | $(flag "$sess_entries" 60 120) |
 | Engine drift (capability_audit) | $drift | $drift_flag |
 

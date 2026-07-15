@@ -5,9 +5,10 @@
 # runs half a container and nobody says so — the hole is found by accident. This makes the
 # container SAY it. Read-only; never writes; never blocks a session; quiet when everything is on.
 #
-# "OFFERED" is derived from the adapter fragment (settings-fragment.example.json) — the canonical
-# "what you should wire" declaration — NOT a hardcoded parallel list (one SSOT, §6b). "WIRED" =
-# the script name appears in the adopter's .claude/settings.json or settings.local.json.
+# "OFFERED" is derived from the selected host adapter — never from a hardcoded parallel list.
+# Claude Code reads settings-fragment.example.json; Codex reads the scripts actually dispatched by
+# adapters/codex/hook_dispatch.sh. "WIRED" means the host adapter references the nerve. For Codex,
+# this report itself runs only after hook trust, so a running startup report is also execution proof.
 # Honest boundary (0.1.33 audit): "wired" is a settings-TEXT check, not an execution proof —
 # a hook whose path does not resolve still counts as wired here. The root fix for that trap is
 # the fragment defaulting to ${CLAUDE_PLUGIN_ROOT} (resolves wherever the plugin lives); this
@@ -23,10 +24,11 @@
 #   [--project-dir <dir>]  default: $CLAUDE_PROJECT_DIR or .
 #   [--memory-dir <dir>]   default: <project-dir>/memory  (reserved; close usage evidence)
 #   [--instance <name>]    label for the ADOPTION line (default: from dir name)
+#   [--host claude|codex]  adapter to inspect (default: codex when PLUGIN_ROOT is set, else claude)
 # Env: HERMES_FAKE_TS (deterministic date in the ADOPTION line, for tests).
 set -uo pipefail
 
-mode="" plugin_dir="" project_dir="" memory_dir="" instance=""
+mode="" plugin_dir="" project_dir="" memory_dir="" instance="" host=""
 while [ $# -gt 0 ]; do
   case "${1:-}" in
     --startup) mode="startup"; shift ;;
@@ -36,10 +38,19 @@ while [ $# -gt 0 ]; do
     --project-dir) project_dir="${2:-}"; shift 2 ;;
     --memory-dir)  memory_dir="${2:-}"; shift 2 ;;
     --instance)    instance="${2:-}"; shift 2 ;;
+    --host)        host="${2:-}"; shift 2 ;;
     *) shift ;;
   esac
 done
 [ -n "$mode" ] || { echo "capability_report: need --startup / --close / --status" >&2; exit 1; }
+
+if [ -z "$host" ]; then
+  if [ -n "${PLUGIN_ROOT:-}" ]; then host="codex"; else host="claude"; fi
+fi
+case "$host" in
+  claude|codex) ;;
+  *) echo "capability_report: --host must be claude or codex" >&2; exit 2 ;;
+esac
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ -n "$plugin_dir" ]  || plugin_dir="$(cd "$script_dir/.." && pwd)"
@@ -47,17 +58,32 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ -n "$memory_dir" ]  || memory_dir="$project_dir/memory"
 [ -n "$instance" ]    || instance="$(basename "$project_dir" 2>/dev/null || echo '<your-instance>')"
 
-fragment="$plugin_dir/adapters/claude-code/settings-fragment.example.json"
 settings="$project_dir/.claude/settings.json"
 settings_local="$project_dir/.claude/settings.local.json"
+codex_dispatch="$plugin_dir/adapters/codex/hook_dispatch.sh"
+codex_hooks="$plugin_dir/adapters/codex/hooks.json"
+codex_manifest="$plugin_dir/.codex-plugin/plugin.json"
 
-# OFFERED = FMC scripts named in the adapter fragment (the canonical opt-in wiring; SSOT).
-offered="$(grep -oE 'scripts/[a-z_]+\.sh' "$fragment" 2>/dev/null | sed 's#scripts/##; s#\.sh##' | sort -u)"
+# OFFERED = scripts named by the selected host adapter (its real execution source of truth).
+if [ "$host" = "codex" ]; then
+  offered="$(grep -oE 'run_script[[:space:]]+"[a-z_]+\.sh"' "$codex_dispatch" 2>/dev/null \
+    | sed -E 's/.*"([a-z_]+)\.sh"/\1/' | grep -v '^capability_report$' | sort -u)"
+else
+  fragment="$plugin_dir/adapters/claude-code/settings-fragment.example.json"
+  offered="$(grep -oE 'scripts/[a-z_]+\.sh' "$fragment" 2>/dev/null \
+    | sed 's#scripts/##; s#\.sh##' | sort -u)"
+fi
 # No fragment / nothing declared → stay silent, never break the boot. (Also true on a source
 # checkout without adapters/, or a trimmed install.)
 [ -n "$offered" ] || exit 0
 
-is_wired() { # script-basename → 0 if referenced in either settings file
+is_wired() { # script-basename → 0 if referenced by the selected active host adapter
+  if [ "$host" = "codex" ]; then
+    grep -qF '"hooks": "./adapters/codex/hooks.json"' "$codex_manifest" 2>/dev/null \
+      && grep -qF 'hook_dispatch.sh' "$codex_hooks" 2>/dev/null \
+      && grep -qE "run_script[[:space:]]+\"$1\.sh\"" "$codex_dispatch" 2>/dev/null
+    return
+  fi
   grep -q "scripts/$1\.sh" "$settings" 2>/dev/null && return 0
   grep -q "scripts/$1\.sh" "$settings_local" 2>/dev/null && return 0
   return 1
@@ -95,7 +121,11 @@ case "$mode" in
     echo "=== FMC — capabilities: $n_wired of $n_off wired ==="
     echo "Available but NOT wired (nobody reports these for you — now you see them):"
     for s in $missing_list; do printf '  · %s\n' "$(human "$s")"; done
-    echo "→ wire them via the /using-container skill or adapters/claude-code/settings-fragment.example.json"
+    if [ "$host" = "codex" ]; then
+      echo "→ update the FMC Codex adapter, then review/trust its exact hook definitions via /hooks"
+    else
+      echo "→ wire them via the /using-container skill or adapters/claude-code/settings-fragment.example.json"
+    fi
     ;;
   close)
     echo "=== FMC self-report — what was available this session ==="

@@ -1,0 +1,41 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-/nonexistent}}/adapters/codex/hook_dispatch.sh\" session-start",
+            "timeout": 30,
+            "statusMessage": "Loading FMC continuity"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-/nonexistent}}/adapters/codex/hook_dispatch.sh\" user-prompt-submit",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-/nonexistent}}/adapters/codex/hook_dispatch.sh\" pre-compact",
+            "timeout": 5,
+            "statusMessage": "Preserving FMC continuity"
+          }
+        ]
+      }
+    ]
+  }
+}

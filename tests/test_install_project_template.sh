@@ -16,6 +16,14 @@ assert_file_contains() {
   grep -F "$expected" "$file" >/dev/null || fail "Expected $file to contain: $expected"
 }
 
+assert_file_not_contains() {
+  local file="$1"
+  local unexpected="$2"
+  if grep -F "$unexpected" "$file" >/dev/null; then
+    fail "Expected $file not to contain: $unexpected"
+  fi
+}
+
 assert_not_exists() {
   local path="$1"
   [ ! -e "$path" ] || fail "Expected path to not exist: $path"
@@ -88,11 +96,17 @@ if "$installer" --force "$project" >/tmp/memory-dir.out 2>/tmp/memory-dir.err; t
   fail "Expected directory conflict to fail"
 fi
 
-echo "test: --with-scripts installs the full 15-script backbone from the manifest"
+echo "test: --with-scripts installs the full 19-script backbone from the manifest"
 project="$tmp_root/full backbone project"
 "$installer" --create-target --with-scripts "$project" >/tmp/hermes-full-backbone.out
 backbone_count="$(find "$project/memory/scripts" -maxdepth 1 -name '*.sh' -type f | wc -l | tr -d ' ')"
-[ "$backbone_count" -eq 15 ] || fail "Expected 15 backbone scripts installed, got $backbone_count"
+[ "$backbone_count" -eq 19 ] || fail "Expected 19 backbone scripts installed, got $backbone_count"
+
+echo "test: generated CAN routes capability audit to plugin source, not a missing adopter script"
+assert_file_contains "$project/memory/CAN.md" 'installed `capability-audit` skill'
+assert_file_contains "$project/memory/CAN.md" '`<plugin-root>/scripts/capability_audit.sh`'
+assert_file_not_contains "$project/memory/CAN.md" '→ `scripts/capability_audit.sh`'
+assert_not_exists "$project/memory/scripts/capability_audit.sh"
 
 echo "test: --refresh-scripts refreshes a stale backbone script but never touches memory/*.md"
 project="$tmp_root/refresh scripts project"

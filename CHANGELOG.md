@@ -3,6 +3,44 @@
 Engine version history. Version = single source of truth in `.claude-plugin/plugin.json`.
 Newest first. Adopter-action detail → `MIGRATION.md`.
 
+## 0.3.1 — slug + [[link]] layer; recall by human name
+
+Atoms are now addressable and linkable by a human **slug**, not just a hash id. `recall.sh <slug|id>`
+drills an atom by its slug (or exact 12-hex id); the registry shows each atom's slug as its address;
+`memory_route --slug` sets an explicit one (otherwise it is derived from the title). `lint_memory` gains
+slug-collision detection; dead-link checking stays on `[[hexid]]` links only (a human `[[slug]]` may point
+to an external note, so flagging it would be noise).
+
+## 0.3.0 — retrieval-first: the container now RECALLS, not just stores
+
+A retrieval layer so an instance sees WHAT it knows at boot and can pull the one atom it needs, instead of
+reading the whole store:
+- `gen_rejstrik.sh` + `rejstrik_inject.sh` — a boot-injected **atom registry** (one ranked row per atom),
+  always recomputed from the blocks so it cannot drift.
+- `recall.sh <id> | --query "words"` — drill a single atom out of the cold store.
+- `memory_route --importance 1..5 --origin <src>` — first-class ranking + provenance DNA in the block body
+  frontmatter (the block marker stays frozen, so idempotence is untouched).
+- `lint_memory.sh` — advisory atom hygiene (duplicate id / bad DNA / missing title / dead link), also a
+  metric in the health report. It measures and proposes; it never blocks a write.
+
+## 0.2.3 — boot orientation survives an un-migrated memory
+
+Three boot-nerve fixes: `state_inject` now injects the legacy orientation file (with a loud migrate
+reminder) instead of withholding it; the folder index counts nested `.md` recursively instead of lying
+"(folder, 0 files)"; and the close handoff points at the real orientation file.
+
+## 0.2.2 — accurate fallback metrics + honest audit routing
+
+`brain_health` and `session_close` now share one fence-aware definition of an open fallback, so a fenced
+documentation example is never counted as real debt; a fresh install no longer routes the capability audit
+at a script that is not part of the adopter backbone.
+
+## 0.2.1 — Codex lifecycle adapter
+
+The Codex adapter wires real plugin-bundled lifecycle hooks (SessionStart / UserPromptSubmit / PreCompact)
+through one sequential dispatcher, with hash-bound trust via `/hooks`; the self-report distinguishes the
+Claude and Codex hosts.
+
 ## 0.2.0 — first public release
 
 The first public release of **farky-memory-container** (also known as *kontAIner*): a portable,

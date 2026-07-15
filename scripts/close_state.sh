@@ -285,7 +285,7 @@ case "$mode" in
     [ -n "$queue" ] || exit 0
     printf '=== FMC RECOVERY — unclosed prior session (advisory) ===\n'
     printf 'A previous session ended with real work but no conscious close. BEFORE starting new work, catch it up:\n'
-    printf 'run  /close --auto <SID>  — the drafter reconstructs STAV/sessions/log from the journal\n'
+    printf 'run  /close --auto <SID>  — the drafter reconstructs STATE/sessions/log from the journal\n'
     printf '(session.md) by ts-range and marks them "auto, unapproved". Queue (oldest first):\n'
     printf '%s\n' "$queue" | while IFS="$(printf '\t')" read -r s mf; do
       [ -n "$mf" ] || continue

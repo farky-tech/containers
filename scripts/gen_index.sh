@@ -90,8 +90,10 @@ gen_table() {
     if [ -n "$lead" ] && [ -f "$lead" ]; then
       printf '| `%s/` | %s |\n' "$b" "$(desc_line "$lead" | redact_secrets | esc_cell)"
     else
-      n="$(find "$sub" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')"
-      printf '| `%s/` | (folder, %s files) |\n' "$b" "$n"
+      # Count .md recursively — a folder of sub-folders (e.g. domeny/<d>/*.md) has 0 top-level files
+      # but is NOT empty; maxdepth-1 made the map lie "(folder, 0 files)" about rich content.
+      n="$(find "$sub" -type f -name '*.md' 2>/dev/null | wc -l | tr -d ' ')"
+      printf '| `%s/` | (folder, %s .md files) |\n' "$b" "$n"
     fi
   done
 }

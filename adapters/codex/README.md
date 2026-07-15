@@ -2,7 +2,8 @@
 
 ## What Works Now
 
-Codex can load the plugin's `skills/` through `.codex-plugin/plugin.json`.
+Codex 0.144.1+ can load both the plugin's skills and its host-specific lifecycle hooks through
+`.codex-plugin/plugin.json`.
 
 Active after plugin installation:
 - `capability-routing` (absorbs the former trigger-calibration + runtime-capability-map)
@@ -21,21 +22,38 @@ templates reference backbone scripts you will not have):
 scripts/install_project_template.sh --with-scripts /path/to/project
 ```
 
-## What Is Spec-Only In Codex
+Lifecycle automation is packaged separately from Claude Code:
 
-These files are included for routing and future adapter work, but are not automatically active in Codex:
+- `.codex-plugin/plugin.json` points to `adapters/codex/hooks.json`.
+- `SessionStart` runs one sequential dispatcher so boot nerves cannot race each other.
+- `UserPromptSubmit` captures the prompt through the redacting journal script.
+- `PreCompact` surfaces a non-blocking continuity reminder.
+- The dispatcher is inert unless the current project or an ancestor carries `memory/MEMORY.md`.
+- A root `INDEX.md` with the `gen_index:auto` marker opts the project into the whole-repo map;
+  otherwise only the memory manifest is injected.
 
-- `hooks/*.md`
-- `subagents/*.md`
+Codex requires trust for the exact hook definition. After install or any hook change, open
+`/hooks`, review the plugin-bundled commands and trust them. Trust is hash-bound, so a later hook
+change correctly asks for review again.
 
-If a Codex session expects a hook/subagent from this plugin and it is unavailable, report it as fallback.
+## Deliberately Not Wired
+
+- `Stop` remains retired: the old hook produced noisy mid-work close nags and did not enforce a
+  real close.
+- `SessionEnd` is not part of the current Codex lifecycle schema. Recovery therefore happens at
+  the next `SessionStart`, while the main-head close remains governed by `AGENTS.md` and the
+  `session-close` skill.
+- `subagents/*.md` remain specs; Codex does not auto-register them from this plugin package.
+
+If an expected Codex hook is missing, skipped or fails, report it as fallback.
 
 ## Recommended Codex Runtime Behavior
 
 Use the plugin quietly:
 
 - trigger `capability-routing` only for explicit container work, fallback/memory/close/audit/research, container-file work, or continuity-sensitive project work,
-- treat hook/subagent files as spec-only unless a host adapter installed them,
+- use the Codex lifecycle adapter quietly after its definitions are trusted,
+- treat subagent files as spec-only unless a host adapter installs them,
 - do not narrate normal skill use,
 - report missing hooks/subagents as fallback only when they were expected,
 - use `lapac` for long-running chat work and visible handoff continuity (carry forward via `scripts/ledger_carry.sh`),
@@ -90,5 +108,12 @@ codex plugin add farky-memory-container@farky-local
 codex plugin list
 ```
 
-After installation, start a new Codex thread to test that plugin skills are exposed in the
-runtime skill list. Existing running threads may not pick up newly installed skills.
+After installation or upgrade:
+
+1. restart the ChatGPT desktop app or start a fresh Codex process,
+2. open `/hooks`, review and trust the current FMC hook definitions,
+3. start a new Codex task in an FMC project,
+4. verify that the startup context contains STATE/capability/index information and no false
+   `0 of 7 wired` report.
+
+Existing running tasks do not retroactively reload a changed plugin or rerun `SessionStart`.

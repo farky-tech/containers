@@ -100,6 +100,29 @@ hermes_has_block() {
   grep -q "hermes:entry kind=[^ ]* id=$2 " "$1" 2>/dev/null
 }
 
+# Derive a stable human slug from a title: lowercase, non-alnum runs -> single dash, trimmed, capped.
+# Deterministic + zero-dep (LC_ALL=C byte view). Diacritics collapse to dashes — a slug is an
+# address/link target, exactness + stability matter more than prettiness; lint catches collisions.
+# args: title text -> slug on stdout.
+hermes_slug() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' \
+    | LC_ALL=C sed 's/[^a-z0-9]\{1,\}/-/g; s/^-*//; s/-*$//' \
+    | cut -c1-50 | LC_ALL=C sed 's/-*$//'
+}
+
+# Print the full canonical block (opening+body+closing markers) whose id matches.
+# The retrieval primitive: drill one atom out of the cold store instead of reading the whole file.
+# args: file id   -> block on stdout; exit 0 if found, 1 if not.
+hermes_get_block() {
+  [ -f "$1" ] || return 1
+  awk -v id="$2" '
+    index($0, "id=" id " ") && /hermes:entry/ && $0 !~ /\/hermes:entry/ { inblk=1 }
+    inblk { print; found=1 }
+    inblk && /\/hermes:entry/ { inblk=0 }
+    END { exit(found ? 0 : 1) }
+  ' "$1"
+}
+
 # Append one canonical block, idempotently and atomically, under a file lock.
 # args: file kind id ts   (body read from stdin)
 # return: 0 written | 2 skipped (id already present) | 1 error
@@ -182,6 +205,22 @@ hermes_count_open_todo() { # $1 = todo file -> integer on stdout
   c="$(awk '
     /^[[:space:]]*```/            { fenced = !fenced; next }
     !fenced && /^[[:space:]]*- \[ \]/ { c++ }
+    END { print c+0 }
+  ' "$1" 2>/dev/null || true)"
+  printf '%s' "${c:-0}"
+}
+
+# Count open fallback status lines outside fenced documentation examples. This
+# deliberately accepts both canonical blocks and legacy unfenced entries: old
+# adopter memory remains readable, while the format example in fallbacks.md is
+# never mistaken for real debt.
+# args: fallback file
+hermes_count_open_fallbacks() {
+  local c
+  [ -f "$1" ] || { printf '0'; return 0; }
+  c="$(awk '
+    /^[[:space:]]*```/       { fenced = !fenced; next }
+    !fenced && /^Status: open([[:space:]]|$)/ { c++ }
     END { print c+0 }
   ' "$1" 2>/dev/null || true)"
   printf '%s' "${c:-0}"

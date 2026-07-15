@@ -34,7 +34,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() { sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
-text="" kind="" memory_dir="./memory" commit=0 approved_by="" reason=""
+text="" kind="" memory_dir="./memory" commit=0 approved_by="" reason="" importance="" origin="" slug=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -44,6 +44,9 @@ while [ $# -gt 0 ]; do
     --commit)      commit=1; shift ;;
     --approved-by) approved_by="${2:-}"; shift 2 ;;
     --reason)      reason="${2:-}"; shift 2 ;;
+    --importance)  importance="${2:-}"; shift 2 ;;
+    --origin)      origin="${2:-}"; shift 2 ;;
+    --slug)        slug="${2:-}"; shift 2 ;;
     -h|--help)     usage; exit 0 ;;
     *) echo "memory_route: unknown arg: $1" >&2; usage; exit 1 ;;
   esac
@@ -67,6 +70,23 @@ if [ "$kind" = "calibration" ] && ! printf '%s' "$text" | grep -qiE '(^|[[:space
   exit 1
 fi
 
+# DNA fields (optional, first-class): importance 1..5 = primary ranking signal for the registry/hot;
+# origin from a small vocabulary = defense against self-reinforcing error. Kept in the BODY
+# frontmatter (never the marker) so the positional block parsers and idempotence stay untouched.
+if [ -n "$importance" ] && ! printf '%s' "$importance" | grep -qE '^[1-5]$'; then
+  echo "memory_route: --importance must be 1..5" >&2; exit 1
+fi
+if [ -n "$origin" ] && ! printf '%s' "$origin" | grep -qE '^(user|ai-derived|doc|approved|untrusted)$'; then
+  echo "memory_route: --origin must be user|ai-derived|doc|approved|untrusted" >&2; exit 1
+fi
+if [ -n "$slug" ] && ! printf '%s' "$slug" | grep -qE '^[a-z0-9][a-z0-9-]*$'; then
+  echo "memory_route: --slug must be kebab-case ([a-z0-9-], not starting with -)" >&2; exit 1
+fi
+dna=""
+[ -n "$slug" ]       && dna="${dna}slug: ${slug}"$'\n'
+[ -n "$importance" ] && dna="${dna}importance: ${importance}"$'\n'
+[ -n "$origin" ]     && dna="${dna}origin: ${origin}"$'\n'
+
 file="$memory_dir/$target"
 ts="$(hermes_now_utc)"
 id="$(hermes_block_id "memory:$kind" "$text")"
@@ -75,8 +95,8 @@ id="$(hermes_block_id "memory:$kind" "$text")"
 if [ "$commit" -eq 0 ]; then
   echo "memory_route: PROPOSAL (not written). Target: $file" >&2
   echo "memory_route: to persist, re-run with --commit --approved-by <who> --reason <why>" >&2
-  printf '<!-- hermes:entry kind=%s id=%s ts=%s -->\nkind: %s\n%s\n<!-- /hermes:entry -->\n' \
-    "$kind" "$id" "$ts" "$kind" "$text"
+  printf '<!-- hermes:entry kind=%s id=%s ts=%s -->\nkind: %s\n%s%s\n<!-- /hermes:entry -->\n' \
+    "$kind" "$id" "$ts" "$kind" "$dna" "$text"
   exit 0
 fi
 
@@ -96,8 +116,8 @@ case "$ab$rs" in
   *$'\n'*) echo "memory_route: COMMIT REFUSED — approval fields must be single-line" >&2; exit 2 ;;
 esac
 
-body="$(printf 'kind: %s\napproved_by: %s\napproved_at: %s\nreason: %s\n\n%s' \
-  "$kind" "$ab" "$ts" "$rs" "$text")"
+body="$(printf 'kind: %s\n%sapproved_by: %s\napproved_at: %s\nreason: %s\n\n%s' \
+  "$kind" "$dna" "$ab" "$ts" "$rs" "$text")"
 
 set +e
 printf '%s' "$body" | hermes_append_block "$file" "$kind" "$id" "$ts"

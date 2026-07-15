@@ -435,9 +435,9 @@ if [ "$with_scripts" -eq 1 ] || [ "$refresh_scripts" -eq 1 ]; then
   if [ -L "$gi_file" ]; then
     echo "warn: $gi_file is a symlink — skipping auto-append; add $gi_base/.backups/ and $gi_base/.fmc-source to your gitignore yourself" >&2
   elif [ "$dry_run" -eq 1 ]; then
-    echo "would ensure gitignore entries in $gi_file ($gi_base/.backups/, $gi_base/.fmc-source)"
+    echo "would ensure gitignore entries in $gi_file ($gi_base/.backups/, $gi_base/.fmc-source, $gi_base/_rejstrik.md, $gi_base/_hot.md)"
   else
-    for gi_line in "$gi_base/.backups/" "$gi_base/.fmc-source"; do
+    for gi_line in "$gi_base/.backups/" "$gi_base/.fmc-source" "$gi_base/_rejstrik.md" "$gi_base/_hot.md"; do
       if [ -f "$gi_file" ] && grep -qxF "$gi_line" "$gi_file" 2>/dev/null; then
         continue
       fi

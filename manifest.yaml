@@ -106,9 +106,13 @@ backbone_scripts:
     - scripts/index_inject.sh      # SessionStart: inject folder-INDEX map (what I have where); default memory/ only, opt-in --whole-repo = whole repo (0.1.31); calls gen_index.sh
     - scripts/gen_index.sh         # helper: folder -> INDEX manifest table (--merge-into keeps curated header; --table-only = table)
     - scripts/journal_prompt.sh    # UserPromptSubmit: silently feed the user's prompt into memory/session.md (write-only); calls session_note.sh
+    - scripts/gen_rejstrik.sh      # helper: knowledge blocks -> _rejstrik.md atom registry (self-regen from data; default importance by kind)
+    - scripts/rejstrik_inject.sh   # SessionStart: regenerate + inject the atom registry (what I know); calls gen_rejstrik.sh
+    - scripts/recall.sh            # retrieval: drill one atom out of the cold store by <id> or --query "words" (a capability, not a gate)
+    - scripts/lint_memory.sh       # advisory hygiene over atoms (dup id / bad importance-origin / no title / dead [[id]] link); feeds brain_health
   migration: MIGRATION.md
 # Claude Code binding — SSOT for the Claude plugin files.
-# Codex-target binding lives separately in .codex-plugin/plugin.json (one container, two thin manifests).
+# Codex-target binding is declared separately below (one container, two host-specific runtimes).
 # capability-audit reads the declared lists below and compares them to disk + runtime; declared != actual = DRIFT.
 claude_binding:
   plugin:
@@ -172,6 +176,34 @@ claude_binding:
       - "agents/ byte-matches scripts/gen_agents.sh --check output (no hand-drift)"
       - "each edge below: source file references the target script (SCRIPTED, not PROSE)"
     output_classes: [active, spec-only, missing, drift]
+
+# Codex binding — lifecycle hooks are supported by Codex 0.144.1+ and packaged separately so
+# enabling the Codex nerves does not change the quieter Claude Code defaults above.
+codex_binding:
+  plugin:
+    name: farky-memory-container
+    hooks_json: adapters/codex/hooks.json
+  hooks:
+    - event: SessionStart
+      status: active
+      purpose: "Sequentially recover close debt, initialize session state, run health/drift checks, inject STATE/capabilities, and refresh the opted-in folder map."
+    - event: UserPromptSubmit
+      status: active
+      purpose: "Capture the user prompt into memory/session.md through journal_prompt.sh with redaction."
+    - event: PreCompact
+      status: active
+      purpose: "Surface a non-blocking context-loss advisory before compaction."
+  deliberately_unwired:
+    - event: Stop
+      reason: "Retired by FMC; it produced noisy mid-work close nags without enforcing a real close."
+    - event: SessionEnd
+      reason: "Not a supported Codex lifecycle event in the current public hook schema."
+  verify:
+    declared_hooks_from: codex_binding.hooks
+    runtime_checks:
+      - ".codex-plugin/plugin.json points to adapters/codex/hooks.json"
+      - "adapters/codex/hooks.json contains exactly the declared active Codex hook events"
+      - "hook_dispatch.sh references only existing backbone scripts"
 
 # Interop graph (R6) — machine-checkable wiring. The verifier reads each edge and
 # classifies it: SCRIPTED (source file actually calls the target script), PROSE

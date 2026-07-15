@@ -51,7 +51,22 @@ printf 'session_id=y\n' > "$T3/.close-state/UNCLOSED-y.env"
 HERMES_FAKE_TS='2026-07-11T10:00:00Z' bash "$BH" --memory-dir "$T3" --report >/dev/null 2>&1
 grep -q 'Unclosed sessions (UNCLOSED markers) | 2' "$T3/health/2026-07-11.md" && ok "2 UNCLOSED markers counted" || bad "unclosed count"
 
-rm -rf "$T" "$T2" "$T3"
+echo "== 8. template fallback example is not counted as open debt =="
+T4="$(mktemp -d)"
+cp "$here/../templates/memory-folder/fallbacks.md" "$T4/fallbacks.md"
+o="$(HERMES_FAKE_TS='2026-07-11T10:00:00Z' bash "$BH" --memory-dir "$T4" --report --dry-run 2>/dev/null)"
+printf '%s' "$o" | grep -qF '| Open fallbacks | 0 |' \
+  && ok "fenced template example -> 0 open fallbacks" \
+  || bad "fenced template example counted as fallback: $o"
+
+echo "== 9. one canonical open fallback is counted exactly once =="
+printf '\n<!-- hermes:entry kind=fallback id=fixture-open ts=2026-07-11T10:00:00Z -->\n## Fixture fallback\nStatus: open\n<!-- /hermes:entry -->\n' >> "$T4/fallbacks.md"
+o="$(HERMES_FAKE_TS='2026-07-11T10:00:00Z' bash "$BH" --memory-dir "$T4" --report --dry-run 2>/dev/null)"
+printf '%s' "$o" | grep -qF '| Open fallbacks | 1 |' \
+  && ok "one canonical open fallback -> 1" \
+  || bad "canonical open fallback count incorrect: $o"
+
+rm -rf "$T" "$T2" "$T3" "$T4"
 echo ""
 echo "== brain_health: $pass passed, $fail failed =="
 [ "$fail" -eq 0 ]

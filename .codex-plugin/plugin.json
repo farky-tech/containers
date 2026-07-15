@@ -1,12 +1,13 @@
 {
   "name": "farky-memory-container",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "license": "MIT",
   "description": "Quiet-by-default capability container for agent skills, subagents, hooks, fallback reporting, and lightweight durable learning.",
   "author": {
     "name": "Farky"
   },
   "skills": "./skills/",
+  "hooks": "./adapters/codex/hooks.json",
   "interface": {
     "displayName": "farky-memory-container",
     "shortDescription": "Capability router and no-silent-fallback layer for coding agents.",

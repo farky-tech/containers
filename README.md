@@ -162,8 +162,10 @@ executable tests under `tests/`.
 Runtime truth per host:
 - **Claude Code:** skills + the read-only kernel hooks are active on install; the invasive nerves
   (injection, journaling, close loop) are opt-in via the settings fragment (see Quickstart C).
-- **Codex CLI:** skills-only runtime; hook and subagent files are specs there, not auto-callable.
-  Spec-only capabilities are not a fallback unless explicitly expected.
+- **Codex 0.144.1+:** skills plus the dedicated lifecycle adapter are packaged in the plugin.
+  Command hooks remain inactive until their exact definitions are reviewed and trusted through
+  `/hooks`; the adapter is inert outside projects carrying `memory/MEMORY.md`. Subagents remain
+  specs rather than auto-registered runtime agents.
 
 Installer safeguards: merge-only by default (never overwrites), backups on any overwrite path,
 symlink and non-regular path refusal, manifest-derived backbone with preflight, executable tests.

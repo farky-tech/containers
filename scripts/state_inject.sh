@@ -12,13 +12,16 @@ state_file="$MEMORY_DIR/STATE.md"
 # 0.2.0 migration hail: upgraded but not yet migrated -> old STAV.md present, new STATE.md absent.
 # Never break boot, but never fall back SILENTLY either (kernel rule) — tell them to migrate.
 if [ ! -f "$state_file" ] && [ -f "$MEMORY_DIR/STAV.md" ]; then
+  # Upgraded-but-not-migrated: warn LOUDLY (kernel: no silent fallback) but STILL inject the legacy
+  # STAV.md — withholding the single most important boot nerve over a vocab rename is worse than the
+  # rename itself. Orientation now survives the un-migrated window (whole un-migrated fleet benefits).
   echo
-  echo "=== ⚠️  FMC 0.2.0 vocabulary migration needed ==="
-  echo "This memory/ still uses pre-0.2.0 names (STAV.md/ZNALOST.md/umim.md) — the 0.2.0 engine reads the"
-  echo "renamed files, so your STATE.md orientation is NOT being injected. Run once:"
+  echo "=== ⚠️  FMC 0.2.0 vocabulary migration needed (orientation still injected below from legacy STAV.md) ==="
+  echo "This memory/ still uses pre-0.2.0 names (STAV.md/ZNALOST.md/umim.md). The 0.2.0 engine prefers the"
+  echo "renamed files; until you migrate, orientation is injected from the legacy STAV.md. Run once:"
   echo "  bash \"\${CLAUDE_PLUGIN_ROOT:-<plugin-root>}/scripts/migrate_vocab.sh\" --memory-dir \"$MEMORY_DIR\""
   echo "=== (details: MIGRATION.md § 0.2.0) ==="
-  exit 0
+  state_file="$MEMORY_DIR/STAV.md"
 fi
 [ -f "$state_file" ] || exit 0   # no STATE yet (fresh project) — stay silent, never break boot
 

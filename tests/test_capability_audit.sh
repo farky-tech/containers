@@ -38,7 +38,8 @@ check(){ if eval "$2"; then ok "$1"; else bad "$1"; fi; }
 
 # ---------------------------------------------------------------- fixture mini-plugin
 fx="$work/fixture"
-mkdir -p "$fx/scripts/lib" "$fx/skills/alpha" "$fx/agents" "$fx/adapters/claude-code"
+mkdir -p "$fx/scripts/lib" "$fx/skills/alpha" "$fx/agents" "$fx/adapters/claude-code" \
+  "$fx/adapters/codex" "$fx/.codex-plugin"
 cp "$audit_src" "$fx/scripts/capability_audit.sh"
 chmod +x "$fx/scripts/capability_audit.sh"
 
@@ -61,10 +62,45 @@ claude_binding:
   verify:
     declared_skills_from: capabilities.skills
     declared_agents_from: claude_binding.agents
+codex_binding:
+  plugin:
+    name: fixture-plugin
+    hooks_json: adapters/codex/hooks.json
+  hooks:
+    - event: SessionStart
+      status: active
 backbone_scripts:
   lib: scripts/lib/fixture_lib.sh
   scripts:
     - scripts/fixture_backbone.sh
+EOF
+
+cat > "$fx/.codex-plugin/plugin.json" <<'EOF'
+{
+  "name": "fixture-plugin",
+  "version": "0.0.1",
+  "hooks": "./adapters/codex/hooks.json",
+  "interface": {
+    "capabilities": [
+      "alpha"
+    ]
+  }
+}
+EOF
+
+cat > "$fx/adapters/codex/hooks.json" <<'EOF'
+{
+  "hooks": {
+    "SessionStart": [
+      {"hooks": [{"type": "command", "command": "bash adapters/codex/hook_dispatch.sh session-start"}]}
+    ]
+  }
+}
+EOF
+
+cat > "$fx/adapters/codex/hook_dispatch.sh" <<'EOF'
+#!/usr/bin/env bash
+run_script "fixture_adapter_only.sh"
 EOF
 
 cat > "$fx/skills/alpha/SKILL.md" <<'EOF'
@@ -129,6 +165,7 @@ check "baseline exits 0" '[ "$rc_base" -eq 0 ]'
 check "baseline reports Drift count: 0" 'printf "%s" "$out_base" | grep -q "Drift count: 0"'
 check "baseline shows backbone script active" 'printf "%s" "$out_base" | grep -q "backbone: scripts/fixture_backbone.sh -> active"'
 check "baseline shows adapter script wired" 'printf "%s" "$out_base" | grep -q "adapter: scripts/fixture_adapter_only.sh -> wired"'
+check "baseline shows Codex hook active" 'printf "%s" "$out_base" | grep -q "codex-hook: SessionStart -> active"'
 check "baseline shows codex count-only honesty label" 'printf "%s" "$out_base" | grep -q "codex-plugin capability check: count-only"'
 
 # ------------------------------------------------------------- 2. reverse skill drift
@@ -195,6 +232,17 @@ set -e
 check "missing adapter script fails the audit (exit 1)" '[ "$rc_adapter" -eq 1 ]'
 check "missing adapter script flagged as drift" 'printf "%s" "$out_adapter" | grep -q "adapter references missing script"'
 check "missing adapter script names fixture_adapter_only.sh" 'printf "%s" "$out_adapter" | grep -q "adapter: scripts/fixture_adapter_only.sh -> DRIFT: adapter references missing script"'
+
+# --------------------------------------------------- 6. Codex declared-vs-wired drift
+echo "test: Codex hook declared active but removed from its host-specific hooks file"
+printf '{"hooks":{}}\n' > "$fx/adapters/codex/hooks.json"
+set +e
+out_codex="$($fx/scripts/capability_audit.sh 2>&1)"
+rc_codex=$?
+set -e
+check "missing declared Codex hook fails the audit (exit 1)" '[ "$rc_codex" -eq 1 ]'
+check "missing Codex SessionStart is host-labelled drift" \
+  'printf "%s" "$out_codex" | grep -q "codex-hook: SessionStart -> DRIFT: declared active but not wired"'
 
 echo
 echo "capability_audit tests: $pass passed, $fail failed"

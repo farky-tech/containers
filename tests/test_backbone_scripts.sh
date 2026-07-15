@@ -167,6 +167,28 @@ check "refused commit wrote nothing" '[ ! -f "$hm/KNOWLEDGE.md" ]'
   --commit --approved-by farky --reason "session learning" >/dev/null 2>&1
 check "approved commit writes block" '[ -f "$hm/KNOWLEDGE.md" ] && grep -q "hermes:entry kind=lesson" "$hm/KNOWLEDGE.md"'
 check "commit records approved_by" 'grep -q "approved_by: farky" "$hm/KNOWLEDGE.md"'
+# DNA fields (0.3.0): --importance/--origin land in the BODY frontmatter, marker FROZEN (kind/id/ts)
+# so the positional parsers + idempotence — the jewel — stay intact.
+hmd="$work/mdna"; mkdir -p "$hmd"
+"$scripts/memory_route.sh" --memory-dir "$hmd" --text "dna atom" --kind decision --importance 5 --origin user \
+  --commit --approved-by farky --reason "dna" >/dev/null 2>&1
+check "DNA: importance on its own body line" 'grep -q "^importance: 5$" "$hmd/KNOWLEDGE.md"'
+check "DNA: origin on its own body line" 'grep -q "^origin: user$" "$hmd/KNOWLEDGE.md"'
+check "DNA: marker NOT polluted (no importance= in marker)" '! grep -q "hermes:entry.*importance=" "$hmd/KNOWLEDGE.md"'
+set +e
+"$scripts/memory_route.sh" --memory-dir "$hmd" --text "dna atom" --kind decision --importance 5 --origin user \
+  --commit --approved-by farky --reason "dna" >/dev/null 2>&1; rc=$?
+set -e
+check "DNA: idempotent re-commit -> exit 3 (skip, not error)" '[ "$rc" -eq 3 ]'
+check "DNA: idempotent re-commit -> still exactly 1 block (jewel intact)" '[ "$(grep -c "hermes:entry kind=decision" "$hmd/KNOWLEDGE.md")" -eq 1 ]'
+set +e
+"$scripts/memory_route.sh" --memory-dir "$hmd" --text x --kind lesson --importance 9 >/dev/null 2>&1; rc=$?
+set -e
+check "DNA: importance out of 1..5 exits 1" '[ "$rc" -eq 1 ]'
+set +e
+"$scripts/memory_route.sh" --memory-dir "$hmd" --text x --kind lesson --origin haxor >/dev/null 2>&1; rc=$?
+set -e
+check "DNA: bad origin exits 1" '[ "$rc" -eq 1 ]'
 # 0.1.24: lesson/decision/procedure share ONE store (KNOWLEDGE.md), distinguished by kind:
 "$scripts/memory_route.sh" --memory-dir "$hm" --text "use scripts" --kind decision \
   --commit --approved-by farky --reason "policy" >/dev/null 2>&1

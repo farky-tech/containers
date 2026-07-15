@@ -46,22 +46,11 @@ sess="$memory_dir/session.md"
 # Open to-do count — delegates to the shared, fenced/indent-aware definition in the
 # lib so this handoff count and the close_state ledger gate never disagree.
 count_open_todo() { hermes_count_open_todo "$1"; }
-# Open fallbacks = entries whose Status line is "open".
-count_open_fallbacks() {
-  local f="$1" c
-  [ -f "$f" ] || { printf '0'; return; }
-  c="$(awk '
-    /^```/ { fenced=!fenced; next }
-    !fenced && /^Status: open/ { c++ }
-    END { print c+0 }
-  ' "$f" 2>/dev/null || true)"
-  printf '%s' "${c:-0}"
-}
 
 # Count all canonical blocks per file (kind label varies: lesson/decision from
 # migration, fact/procedure from memory_route) — the file is the category.
 open_todo="$(count_open_todo "$todo")"
-open_fb="$(count_open_fallbacks "$fb")"
+open_fb="$(hermes_count_open_fallbacks "$fb")"
 fb_blocks="$(hermes_count_blocks "$fb" fallback)"
 les_blocks="$(hermes_count_blocks "$les")"
 dec_blocks="$(hermes_count_blocks "$dec")"
@@ -137,7 +126,7 @@ ${journal:-  (no session journal — session_note.sh --start was never run)}
 
 ### Open items (pull these into the lapac list first at next boot)
 ${open_items:-  (nothing unfinished — todo.md is clean)}
-Next load: read memory/MEMORY.md, pull the open items above into the lapac list.
+Next load: read memory/STATE.md (orientation, read-first), pull the open items above into the lapac list.
 EOF
 
 # Legacy compat hint (R10): warn if files still hold un-migrated entries.
