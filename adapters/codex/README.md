@@ -30,6 +30,8 @@ Lifecycle automation is packaged separately from Claude Code:
 - `PreCompact` surfaces a non-blocking continuity reminder.
 - The dispatcher is inert unless the current project or an ancestor carries `memory/MEMORY.md`.
 - A root `INDEX.md` with the `gen_index:auto` marker opts the project into the whole-repo map;
+  adding `gen_index:tree` recursively maintains and injects every safe project folder/file;
+  `ostatni-v-repu/INDEX.md` with `gen_index:root-files` owns loose root files;
   otherwise only the memory manifest is injected.
 
 Codex requires trust for the exact hook definition. After install or any hook change, open

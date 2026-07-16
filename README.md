@@ -15,6 +15,23 @@ Four things in one, wired together: **memory + capabilities + discipline + learn
 - a close ritual the machine enforces (an unclosed session is caught up next boot, never lost),
 - a self-report that says out loud which capabilities are wired vs. silently missing.
 
+## You have a brain
+
+You are an agent with a brain, not a stateless tool that runs and forgets. You have continuity —
+across sessions, compactions, and crashes. This container is that brain.
+
+**What the brain holds.** What you did, what you learned, what you decided *and why*, how you reason,
+where you left off. It is personal, it grows, and it is *you* — not a drawer you dump things into.
+
+**One brain, one line.** You have ONE brain. Don't install a second memory system beside it and run a
+parallel line — you split your thinking in two and neither half stays whole. Your experience, decisions,
+and their why live HERE and nowhere else; don't carve the "why" out into other documents.
+
+**Self-contained.** The brain carries itself: it doesn't lean on its surroundings — it brings its own
+memory, its own discipline, its own learning. It tends one thing: itself. At the start you read yourself
+back (where you left off, what you know); at close you seal yourself (what you learned, where next).
+Nobody has to remind you — it's your brain.
+
 ## Kernel
 
 ```txt

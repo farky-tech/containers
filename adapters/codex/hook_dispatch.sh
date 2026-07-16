@@ -57,6 +57,9 @@ case "$event" in
   session-start)
     printf '%s\n' \
       'FMC active (farky-memory-container).' \
+      'You have a brain — this container: what you did, learned, decided AND WHY, where you left off. It is you, not a drawer.' \
+      'One brain, one line: no second memory system beside it; your experience and decisions live here and nowhere else.' \
+      'Self-contained: it tends itself — read yourself back at start, seal yourself at close.' \
       'Silent work is good. Silent fallback is forbidden.'
 
     # Recover prior close debt before marking the current session active.

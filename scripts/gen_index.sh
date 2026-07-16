@@ -12,12 +12,17 @@
 # > blockquote > H1 > first line.
 set -uo pipefail
 
-DIR=""; TITLE=""; MERGE=""; TABLE_ONLY=""
+DIR=""; TITLE=""; MERGE=""; TABLE_ONLY=""; COMPACT=""; ALL_FILES=""; INCLUDE_HIDDEN=""; FILES_ONLY=""; FOLDERS_ONLY=""
 while [ $# -gt 0 ]; do
   case "${1:-}" in
     --title) TITLE="${2:-}"; shift 2 ;;
     --merge-into) MERGE="${2:-}"; shift 2 ;;
     --table-only) TABLE_ONLY=1; shift ;;   # print just the manifest table (no curated/kernel header)
+    --compact) COMPACT=1; shift ;;         # print names only; bounded SessionStart tree view
+    --all-files) ALL_FILES=1; shift ;;     # list safe direct files, not only Markdown
+    --include-hidden) INCLUDE_HIDDEN=1; shift ;; # include project dotfiles/dirs; trust exclusions still apply
+    --files-only) FILES_ONLY=1; shift ;;   # virtual index: direct files, no directory rows
+    --folders-only) FOLDERS_ONLY=1; shift ;; # root rollup: directory rows, no direct files
     *) [ -z "$DIR" ] && DIR="$1"; shift ;;
   esac
 done
@@ -64,20 +69,72 @@ redact_secrets() {
     -e 's/-----BEGIN[A-Z ]*PRIVATE KEY-----/[REDACTED-KEY]/g'
 }
 
+file_kind() {
+  local b="$1"
+  case "$b" in
+    .gitignore) echo "Git ignore rules" ;;
+    .gitattributes) echo "Git attributes" ;;
+    .editorconfig) echo "Editor configuration" ;;
+    *.sh) echo "Shell script" ;;
+    *.py) echo "Python source" ;;
+    *.js|*.mjs|*.cjs) echo "JavaScript source" ;;
+    *.ts|*.tsx) echo "TypeScript source" ;;
+    *.json) echo "JSON data/configuration" ;;
+    *.yaml|*.yml) echo "YAML data/configuration" ;;
+    *.toml) echo "TOML configuration" ;;
+    *.html) echo "HTML document" ;;
+    *.css) echo "Stylesheet" ;;
+    *.svg|*.png|*.jpg|*.jpeg|*.gif|*.webp) echo "Image asset" ;;
+    *.pdf) echo "PDF document" ;;
+    *.txt) echo "Text file" ;;
+    *) echo "Project file" ;;
+  esac
+}
+
+skip_file() {
+  local b="$1"
+  case "$b" in
+    INDEX.md|.DS_Store|.env|.env.*|.gen_index.*|.capability-snapshot|.fmc-source|.recall-hits.log|*.pem|*.key|*.p12|*.pfx|*credentials*|*Credentials*) return 0 ;;
+  esac
+  return 1
+}
+
+skip_dir() {
+  local b="$1"
+  case "$b" in
+    .git|.venv|.tox|.cache|.pytest_cache|.mypy_cache|.ruff_cache|.next|.skill-build|.backups|.close-state|.loop-state|.session-archive|.recall-state|__pycache__|node_modules|vendor|dist|build|Koš|Kos|_*) return 0 ;;
+  esac
+  return 1
+}
+
 gen_table() {
   printf '| File | What it is |\n|---|---|\n'
-  for f in "$DIR"/*.md; do
+  if [ -z "$FOLDERS_ONLY" ]; then for f in "$DIR"/* "$DIR"/.[!.]* "$DIR"/..?*; do
     [ -f "$f" ] || continue
+    [ -L "$f" ] && continue
     # A manifest never lists itself — INDEX.md IS this table's output file (merge mode),
     # so a self-row is noise (and a whole-repo root INDEX would list "INDEX.md" about itself).
-    case "$(basename "$f")" in INDEX.md) continue ;; esac
-    printf '| `%s` | %s |\n' "$(basename "$f")" "$(desc_line "$f" | redact_secrets | esc_cell)"
-  done
-  for sub in "$DIR"/*/; do
+    b="$(basename "$f")"
+    skip_file "$b" && continue
+    [ -n "$INCLUDE_HIDDEN" ] || case "$b" in .*) continue ;; esac
+    if [ -z "$ALL_FILES" ]; then
+      case "$b" in *.md) ;; *) continue ;; esac
+    fi
+    if [ "${b##*.}" = "md" ]; then
+      d="$(desc_line "$f" | redact_secrets | esc_cell)"
+    else
+      # Never inspect non-Markdown content. Configs and binaries may contain secrets;
+      # the tree needs their path and type, not their values.
+      d="$(file_kind "$b" | esc_cell)"
+    fi
+    printf '| `%s` | %s |\n' "$b" "$d"
+  done; fi
+  if [ -z "$FILES_ONLY" ]; then for sub in "$DIR"/*/ "$DIR"/.[!.]*/ "$DIR"/..??*/; do
     [ -d "$sub" ] || continue
     b="$(basename "$sub")"
     # Trash, dot/underscore, and build/vendor dirs are noise in any manifest (root rollup incl.).
-    case "$b" in _*|.*|Koš|Kos|node_modules|vendor|dist|build) continue ;; esac
+    skip_dir "$b" && continue
+    [ -n "$INCLUDE_HIDDEN" ] || case "$b" in .*) continue ;; esac
     # Never read/describe a symlinked folder — its target may live outside the repo (trust
     # boundary; the injected map goes into the session context). audit 2026-07-12.
     [ -L "${sub%/}" ] && continue
@@ -92,10 +149,43 @@ gen_table() {
     else
       # Count .md recursively — a folder of sub-folders (e.g. domeny/<d>/*.md) has 0 top-level files
       # but is NOT empty; maxdepth-1 made the map lie "(folder, 0 files)" about rich content.
-      n="$(find "$sub" -type f -name '*.md' 2>/dev/null | wc -l | tr -d ' ')"
-      printf '| `%s/` | (folder, %s .md files) |\n' "$b" "$n"
+      if [ -n "$ALL_FILES" ]; then
+        n="$(find "$sub" -type f 2>/dev/null | wc -l | tr -d ' ')"
+        printf '| `%s/` | (folder, %s files) |\n' "$b" "$n"
+      else
+        n="$(find "$sub" -type f -name '*.md' 2>/dev/null | wc -l | tr -d ' ')"
+        printf '| `%s/` | (folder, %s .md files) |\n' "$b" "$n"
+      fi
     fi
-  done
+  done; fi
+}
+
+gen_compact() {
+  # SessionStart needs the complete path inventory, not every derived description. A large
+  # plain-text hook output can be dropped by the host as one unit; names-only keeps the boot
+  # context bounded while physical INDEX.md files retain their detailed tables.
+  local wrote="" f sub b
+  if [ -z "$FOLDERS_ONLY" ]; then for f in "$DIR"/* "$DIR"/.[!.]* "$DIR"/..?*; do
+    [ -f "$f" ] || continue
+    [ -L "$f" ] && continue
+    b="$(basename "$f")"
+    skip_file "$b" && continue
+    [ -n "$INCLUDE_HIDDEN" ] || case "$b" in .*) continue ;; esac
+    if [ -z "$ALL_FILES" ]; then case "$b" in *.md) ;; *) continue ;; esac; fi
+    printf '%s\t' "$b"
+    wrote=1
+  done; fi
+  if [ -z "$FILES_ONLY" ]; then for sub in "$DIR"/*/ "$DIR"/.[!.]*/ "$DIR"/..??*/; do
+    [ -d "$sub" ] || continue
+    [ -L "${sub%/}" ] && continue
+    b="$(basename "$sub")"
+    skip_dir "$b" && continue
+    [ -n "$INCLUDE_HIDDEN" ] || case "$b" in .*) continue ;; esac
+    printf '%s/\t' "$b"
+    wrote=1
+  done; fi
+  [ -n "$wrote" ] || printf '(empty)'
+  printf '\n'
 }
 
 default_header() {
@@ -103,7 +193,9 @@ default_header() {
   printf '> Folder manifest: what it contains + one-line context.\n'
 }
 
-if [ -n "$TABLE_ONLY" ]; then
+if [ -n "$COMPACT" ]; then
+  gen_compact
+elif [ -n "$TABLE_ONLY" ]; then
   # Injection view: only the manifest table (what lives where), no header/kernel fluff.
   # The curated header stays in the INDEX.md file on disk for when it's opened directly.
   # NB: --table-only WINS over --merge-into (callers pass them separately — index_inject.sh

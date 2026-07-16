@@ -103,8 +103,8 @@ backbone_scripts:
     # delivers them and so their existence is honest, not hidden.
     - scripts/state_inject.sh       # SessionStart: inject memory/STATE.md (orientation, read-first)
     - scripts/capability_inject.sh # SessionStart: inject FMC backbone + capability drift (newly gained/gone) + inbox reminder
-    - scripts/index_inject.sh      # SessionStart: inject folder-INDEX map (what I have where); default memory/ only, opt-in --whole-repo = whole repo (0.1.31); calls gen_index.sh
-    - scripts/gen_index.sh         # helper: folder -> INDEX manifest table (--merge-into keeps curated header; --table-only = table)
+    - scripts/index_inject.sh      # SessionStart: inject folder-INDEX map; default memory/, gen_index:auto = top-level repo, gen_index:tree = recursive safe tree (0.3.4); calls gen_index.sh
+    - scripts/gen_index.sh         # helper: folder -> INDEX manifest; --all-files + --include-hidden expose safe project paths without reading non-Markdown content (0.3.4)
     - scripts/journal_prompt.sh    # UserPromptSubmit: silently feed the user's prompt into memory/session.md (write-only); calls session_note.sh
     - scripts/gen_rejstrik.sh      # helper: knowledge blocks -> _rejstrik.md atom registry (self-regen from data; default importance by kind); --tsv = machine contract for tools
     - scripts/rejstrik_inject.sh   # SessionStart: regenerate + inject the atom registry (what I know); calls gen_rejstrik.sh

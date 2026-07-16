@@ -78,6 +78,8 @@ reason. Enable by pasting the boot-nerve blocks from `settings-fragment.example.
   refreshes each folder's `INDEX.md` and injects only the manifest table. Default scope =
   `memory/` only (boot diet); **opt-in `--whole-repo`** (= `--scope repo`) injects the whole-repo
   map — all tracked top-level folders (tracked = has an `INDEX.md`) + a root rollup (0.1.31).
+  Root marker `gen_index:tree` upgrades this to the recursive safe tree; managed
+  `ostatni-v-repu/INDEX.md` with `gen_index:root-files` owns loose root files (0.3.4).
 - `scripts/journal_prompt.sh` (UserPromptSubmit) — silently feed each prompt into
   `memory/session.md` (write-only: no stdout, never non-zero; secret-redacted before write
   since session.md is git-tracked).

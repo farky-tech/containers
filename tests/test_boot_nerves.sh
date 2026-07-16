@@ -244,6 +244,83 @@ m2="$(mstat "$root3e/stable/INDEX.md")"
 [ "$m1" = "$m2" ] && ok "whole-repo mtime skip: unchanged folder not regenerated" \
   || bad "whole-repo regenerated an unchanged folder ($m1 -> $m2)"
 
+# whole-repo cache also invalidates on pure deletion and rename. Child-only mtime checks miss
+# deleted names because no newer child remains; the directory mtime is the required signal.
+root3del="$T/ii_delete/root"; home3del="$T/ii_delete/home"
+mkdir -p "$root3del/memory" "$root3del/tracked" "$home3del"
+printf '# m\nx\n' > "$root3del/memory/m.md"
+printf '# Tracked\n<!-- gen_index:auto -->\n' > "$root3del/tracked/INDEX.md"
+printf '# old\ndesc\n' > "$root3del/tracked/old.md"
+CLAUDE_PROJECT_DIR="$root3del" HOME="$home3del" bash "$II" --memory-dir "$root3del/memory" --whole-repo >/dev/null 2>&1
+sleep 1
+rm "$root3del/tracked/old.md"
+CLAUDE_PROJECT_DIR="$root3del" HOME="$home3del" bash "$II" --memory-dir "$root3del/memory" --whole-repo >/dev/null 2>&1
+! grep -qF '`old.md`' "$root3del/tracked/INDEX.md" \
+  && ok "whole-repo cache: pure deletion removes stale row" \
+  || bad "whole-repo cache: pure deletion left stale old.md row"
+printf '# rename old\ndesc\n' > "$root3del/tracked/rename-old.md"
+CLAUDE_PROJECT_DIR="$root3del" HOME="$home3del" bash "$II" --memory-dir "$root3del/memory" --whole-repo >/dev/null 2>&1
+sleep 1
+mv "$root3del/tracked/rename-old.md" "$root3del/tracked/rename-new.md"
+CLAUDE_PROJECT_DIR="$root3del" HOME="$home3del" bash "$II" --memory-dir "$root3del/memory" --whole-repo >/dev/null 2>&1
+{ ! grep -qF '`rename-old.md`' "$root3del/tracked/INDEX.md" \
+  && grep -qF '`rename-new.md`' "$root3del/tracked/INDEX.md"; } \
+  && ok "whole-repo cache: rename replaces old row with new row" \
+  || bad "whole-repo cache: rename left stale/missing row"
+
+# --- recursive tree mode (0.3.4): every safe folder + every safe direct file --------
+root3f="$T/ii_f/root"; home3f="$T/ii_f/home"
+mkdir -p "$root3f/memory" "$root3f/.agents/skills/demo" "$root3f/docs/nested" \
+  "$root3f/manual" "$root3f/ostatni-v-repu" "$root3f/.git/objects" "$root3f/build/cache" \
+  "$root3f/memory/.backups/old" "$root3f/memory/.close-state" "$home3f"
+printf '# Root\n<!-- gen_index:auto -->\n<!-- gen_index:tree -->\n' > "$root3f/INDEX.md"
+printf '# Ostatni v repu\n<!-- gen_index:root-files -->\n<!-- gen_index:auto -->\n' > "$root3f/ostatni-v-repu/INDEX.md"
+printf '# Memory\n' > "$root3f/memory/MEMORY.md"
+printf 'runtime only\n' > "$root3f/memory/.fmc-source"
+printf 'transient only\n' > "$root3f/memory/.gen_index.stale"
+printf '# Agent rules\n' > "$root3f/AGENTS.md"
+printf '.env\n' > "$root3f/.gitignore"
+printf '# Doc\nhello\n' > "$root3f/docs/a.md"
+printf '#!/bin/sh\n' > "$root3f/docs/tool.sh"
+printf '{}\n' > "$root3f/.agents/skills/demo/config.json"
+printf 'SECRET=must-not-be-indexed\n' > "$root3f/.env"
+printf 'EXTERNAL INDEX MUST SURVIVE\n' > "$root3f/manual/INDEX.md"
+outtree="$(CLAUDE_PROJECT_DIR="$root3f" HOME="$home3f" bash "$II" --memory-dir "$root3f/memory" --whole-repo)"; rc=$?
+{ [ "$rc" -eq 0 ] && echo "$outtree" | grep -q 'REPO TREE' \
+  && echo "$outtree" | grep -q '^\.agents/skills/demo/: .*config.json' \
+  && echo "$outtree" | grep -q '^docs/: .*tool.sh'; } \
+  && ok "tree mode: hidden project dirs + non-Markdown files are injected" \
+  || bad "tree mode: complete project tree missing (rc=$rc): $outtree"
+{ [ "$(printf '%s' "$outtree" | wc -c | tr -d ' ')" -lt 4096 ] \
+  && ! echo "$outtree" | grep -q 'Shell script' \
+  && ! echo "$outtree" | grep -q 'JSON data/configuration'; } \
+  && ok "tree mode: startup inventory is compact names-only output" \
+  || bad "tree mode: startup inventory exceeded compact contract"
+{ [ -f "$root3f/.agents/INDEX.md" ] && [ -f "$root3f/.agents/skills/demo/INDEX.md" ] \
+  && [ -f "$root3f/docs/nested/INDEX.md" ]; } \
+  && ok "tree mode: physical INDEX.md seeded recursively" \
+  || bad "tree mode: recursive INDEX.md seed incomplete"
+{ [ ! -f "$root3f/.git/INDEX.md" ] && [ ! -f "$root3f/build/INDEX.md" ] \
+  && [ ! -f "$root3f/memory/.backups/INDEX.md" ] \
+  && ! echo "$outtree" | grep -Eq '\.env|\.backups|\.close-state|\.fmc-source|\.gen_index\.'; } \
+  && ok "tree mode: VCS/build/secret exclusions hold" \
+  || bad "tree mode: excluded path or secret filename leaked"
+grep -q 'EXTERNAL INDEX MUST SURVIVE' "$root3f/manual/INDEX.md" \
+  && ok "tree mode: foreign/manual INDEX.md is preserved" \
+  || bad "tree mode: foreign/manual INDEX.md was overwritten"
+{ grep -q '`AGENTS.md`' "$root3f/ostatni-v-repu/INDEX.md" \
+  && grep -q '`\.gitignore`' "$root3f/ostatni-v-repu/INDEX.md" \
+  && ! grep -q '`AGENTS.md`' "$root3f/INDEX.md" \
+  && grep -q '`ostatni-v-repu/`' "$root3f/INDEX.md"; } \
+  && ok "tree mode: loose root files live only in ostatni-v-repu virtual index" \
+  || bad "tree mode: root files missing or duplicated outside virtual index"
+sleep 1
+rm "$root3f/docs/a.md"
+CLAUDE_PROJECT_DIR="$root3f" HOME="$home3f" bash "$II" --memory-dir "$root3f/memory" --whole-repo >/dev/null 2>&1
+! grep -qF '`a.md`' "$root3f/docs/INDEX.md" \
+  && ok "tree mode cache: pure deletion removes stale nested row" \
+  || bad "tree mode cache: pure deletion left stale nested row"
+
 # ============================================================================
 echo "== 4. journal_prompt.sh — write-only nerve: zero stdout noise, never blocks =="
 JP="$scripts/journal_prompt.sh"

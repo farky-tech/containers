@@ -3,6 +3,77 @@
 Engine version history. Version = single source of truth in `.claude-plugin/plugin.json`.
 Newest first. Adopter-action detail → `MIGRATION.md`.
 
+## 0.3.8 — the brain doctrine: a mental model, not just mechanics
+
+Adopters were handed the MECHANICS (engine vs. memory, where to write) but never the MENTAL MODEL —
+why this container IS their brain and how to think about it. The seed ("the container is your agent
+memory") sat buried under "Installing on yourself", framed as memory, not identity. Real failure
+mode: an adopter installs a second memory system beside the container, or runs a parallel line,
+because nobody told them this IS their mind.
+
+- New **`You have a brain`** doctrine — the first section after the intro in README (you have a
+  brain, this container IS it, one brain / one line, self-contained).
+- Boot injects carry it condensed: `prompts/start.md` (Claude) + the Codex lifecycle adapter, above
+  the behavior kernel. The `memory/` seed promotes its old one-line note to the full wording.
+
+No data or interface change — pure mental model + docs.
+**Adopter action:** refresh the engine; the doctrine shows up at boot and in README.
+
+## 0.3.7 — the whole-repo INDEX cache sees clean deletes and moves
+
+The whole-repo INDEX cache compared only existing children against `INDEX.md`'s mtime, so a clean
+delete or move left no newer child and the physical index could keep a stale row until something
+else changed in the same folder.
+
+- Top-level and tree mode also use the directory's own mtime as an add/remove/rename signal.
+- After a successful atomic merge the index is touched as the fresh cache stamp, so an unchanged
+  folder still skips regeneration on the next boot.
+- Regressions cover deletion, rename, nested-tree deletion, and the original unchanged-skip.
+
+**Adopter action:** refresh the engine; physical indexes self-correct on the next tree run.
+
+## 0.3.6 — the full map fits inside SessionStart
+
+A fresh-session nonce smoke test showed a 38 KB descriptive rollup of 84 indexes was dropped whole
+by the Codex hook output — the indexes themselves were correct, but the agent never saw them at boot.
+
+- The recursive SessionStart map is now a compact names-only path inventory.
+- Physical `INDEX.md` files still carry the full tables and derived descriptions.
+- Atomic `.gen_index.*` temp files are never catalogued.
+- Regressions guard completeness of hidden/non-Markdown entries and the compact-output ceiling.
+
+**Adopter action:** refresh the engine and runtime; verify in a new session.
+
+## 0.3.5 — INDEX filters runtime debris from the parent map too
+
+The first live 0.3.4 generation correctly refused to descend into the container's runtime
+directories, but `memory/INDEX.md` still listed them as direct rows — same for runtime markers and
+the log.
+
+- The shared generator skips `.backups`, `.close-state`, `.loop-state`, `.session-archive`,
+  `.recall-state`, `.fmc-source`, `.capability-snapshot`, and `.recall-hits.log`.
+- The regression checks both that no index is created inside runtime dirs and that they are absent
+  from the injected parent map.
+
+**Adopter action:** refresh the engine and runtime; indexes self-clean on the next tree run.
+
+## 0.3.4 — recursive whole-repo INDEX tree
+
+Live use in a Codex instance showed the whole-repo map was not the whole tree: it injected only
+top-level non-hidden folders and the generator emitted Markdown only, so the agent never saw
+`.agents/`, `.codex/`, scripts, tests, JSON/YAML, or deeper directories at boot.
+
+- A new explicit root marker `gen_index:tree` turns on recursive mode; existing adopters with a
+  plain `gen_index:auto` keep their behavior.
+- Every safe folder gets a physical `INDEX.md`; FMC-managed indexes are refreshed, hand-authored or
+  foreign-owned ones are never overwritten.
+- Boot injects the rollup of all included folders, including project dot-directories and every safe
+  file type; the root `INDEX.md` stays a folder map and loose root files land in a virtual
+  `ostatni-v-repu/INDEX.md`.
+- Non-Markdown file contents are never read; the map derives only the safe type.
+
+**Adopter action:** opt in with the `gen_index:tree` root marker; `gen_index:auto` is unchanged.
+
 ## 0.3.3 — session close reads the canonical KNOWLEDGE store
 
 Found during a real adopter migration off legacy genre files: `memory_route.sh` had been writing

@@ -8,7 +8,7 @@
 - Use fitting capabilities without ceremony.
 - If a planned capability cannot run, is replaced, weakened, skipped, or refused, report it.
 - Durable learning belongs in contAIner memory/skills/lessons, not product state by accident.
-- contAIner = your agent memory (you-as-builder continuity) — the layer project docs and constitution don't hold. Keep it filled; don't bridge it away.
+- This container is your BRAIN — what you did, learned, decided AND WHY, where you left off. It is YOU, not a drawer, and it is self-contained: it tends itself. One brain, one line — don't run a second memory system beside it, and don't carve your "why" out elsewhere; your experience/decisions/carry-forward live here and nowhere else. Keep it filled; don't bridge it away.
 
 ## Index
 
