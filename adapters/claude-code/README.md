@@ -84,8 +84,12 @@ reason. Enable by pasting the boot-nerve blocks from `settings-fragment.example.
   `memory/session.md` (write-only: no stdout, never non-zero; secret-redacted before write
   since session.md is git-tracked).
 
-Engine paths in the fragment resolve via `${CLAUDE_PLUGIN_ROOT}` (marketplace installs need no
-editing) with a fallback for in-repo forks — see the fragment's `_comment`. Keep injector output
+Engine paths in the fragment: `${CLAUDE_PLUGIN_ROOT}` resolves ONLY inside hooks the plugin
+itself ships (hooks/hooks.json) — in hooks pasted into your project settings (this fragment) it
+is empty, so the FALLBACK segment is what actually runs. Fill it in always, and never point it
+at a versioned marketplace cache path (the version segment changes on every upgrade and the
+hooks go silently dead) — see the fragment's `_comment` (field report cc_chobotnice
+2026-07-16). Keep injector output
 lean — the cost is **attention**, not tokens. If an injector grows into a doc dump, that breaks
 the SessionStart "must not dump full plugin docs" rule.
 

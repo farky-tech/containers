@@ -19,8 +19,24 @@ while [ "$#" -gt 0 ]; do
     --layout=*)
       layout_override="${1#--layout=}"
       ;;
+    # Accepted for backbone CLI consistency and ignored: every other backbone script takes
+    # --memory-dir, so adopters reach for it here too (field report cc_chobotnice 2026-07-16).
+    # This audit targets the plugin checkout (declared vs disk vs wired), not a memory dir —
+    # say so instead of failing with "Unknown argument".
+    --memory-dir|--hermes-dir)
+      shift
+      if [ "$#" -eq 0 ]; then
+        echo "Missing value for --memory-dir" >&2
+        exit 2
+      fi
+      echo "note: --memory-dir accepted for backbone CLI consistency and ignored — this audit targets the plugin checkout, not a memory dir" >&2
+      ;;
+    --memory-dir=*|--hermes-dir=*)
+      echo "note: --memory-dir accepted for backbone CLI consistency and ignored — this audit targets the plugin checkout, not a memory dir" >&2
+      ;;
     -h|--help)
-      echo "Usage: bash scripts/capability_audit.sh [--layout plugin|repo]" >&2
+      echo "Usage: bash scripts/capability_audit.sh [--layout plugin|repo] [--memory-dir DIR]" >&2
+      echo "  --memory-dir is accepted for CLI consistency with the rest of the backbone and ignored — the audit targets the plugin checkout, not a memory dir." >&2
       exit 0
       ;;
     *)

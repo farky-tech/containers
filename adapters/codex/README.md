@@ -12,7 +12,6 @@ Active after plugin installation:
 - `memory-routing`
 - `skill-authoring`
 - `capability-audit`
-- `lapac`
 - `using-container` (engine vs. memory guide)
 
 Project template can be installed manually (use `--with-scripts` — without it the
@@ -58,7 +57,7 @@ Use the plugin quietly:
 - treat subagent files as spec-only unless a host adapter installs them,
 - do not narrate normal skill use,
 - report missing hooks/subagents as fallback only when they were expected,
-- use `lapac` for long-running chat work and visible handoff continuity (carry forward via `scripts/ledger_carry.sh`),
+- keep a visible to-do ledger for long-running chat work and handoff continuity (carry forward via `scripts/ledger_carry.sh`),
 - use `session-close` for larger work or when fallback/durable learning occurred.
 
 ## Local Codex Marketplace Install

@@ -173,11 +173,27 @@ gi="$project/.gitignore"
 [ -f "$gi" ] || fail "Expected $gi to be created by scripts delivery"
 grep -qxF "memory/.backups/" "$gi" || fail "Expected memory/.backups/ line in $gi"
 grep -qxF "memory/.fmc-source" "$gi" || fail "Expected memory/.fmc-source line in $gi"
+grep -qxF "memory/.close-state/" "$gi" || fail "Expected memory/.close-state/ line in $gi"
 "$installer" --refresh-scripts "$project" >/tmp/hermes-gitignore2.out
 n_backups="$(grep -cxF "memory/.backups/" "$gi")"
 n_marker="$(grep -cxF "memory/.fmc-source" "$gi")"
 [ "$n_backups" = "1" ] || fail "Expected exactly 1 memory/.backups/ line after re-run, got $n_backups"
 [ "$n_marker" = "1" ] || fail "Expected exactly 1 memory/.fmc-source line after re-run, got $n_marker"
+
+echo "test: docs-only install (no --with-scripts) ALSO ensures the runtime gitignore entries (0.3.9, cc_chobotnice field report)"
+project="$tmp_root/gitignore docs-only project"
+"$installer" --create-target "$project" >/tmp/hermes-gitignore3.out
+gi="$project/.gitignore"
+[ -f "$gi" ] || fail "Expected $gi to be created by a docs-only install (engine hooks generate runtime state regardless of --with-scripts)"
+for entry in "memory/.close-state/" "memory/.capability-snapshot" "memory/.watch-state" "memory/_rejstrik.md" "memory/.recall-state/"; do
+  grep -qxF "$entry" "$gi" || fail "Expected $entry line in $gi after docs-only install"
+done
+if grep -qxF "memory/session.md" "$gi"; then
+  fail "memory/session.md must NOT be auto-ignored (adopter data policy — README What belongs in git)"
+fi
+if grep -qxF "memory/INDEX.md" "$gi"; then
+  fail "memory/INDEX.md must NOT be auto-ignored (adopter data policy)"
+fi
 
 echo "test: missing manifest.yaml fails hard instead of installing a silent partial backbone"
 plugin_copy="$tmp_root/plugin copy no manifest"

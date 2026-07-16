@@ -117,6 +117,14 @@ don't silently fork it in your copy, or you drift and lose upgrades.
 - (in each project) the live `memory/` folder: your journal, lessons, decisions, capability index,
   carry-forward. This is the one thing with **no other home** — yours, per-project, never shipped or overwritten.
 
+**What belongs in git (adopter policy):** the durable layers are `sessions/` + `log.md` (plus the
+curated STATE/CAN/KNOWLEDGE files). The live `session.md` is a runtime black box — the journal hook
+appends every prompt, and it gets distilled into `log.md`/`sessions/` on close. Commit it if you
+want the raw trail in history; gitignore it (plus `.session-archive/` and the generated `INDEX.md`)
+if you don't — that call is yours. Pure runtime state (`.close-state/`, `.recall-state/`,
+`.capability-snapshot`, `.watch-state`, `_rejstrik.md`, `.backups/`, …) is appended to your
+`.gitignore` by the installer on **every** install mode since 0.3.9 (docs-only included).
+
 ### Contribute — the source's living record (write here, don't overwrite the engine)
 - `ADOPTION.md`: who uses this source + field-feedback log. Hit a gap or want a change? **Write a
   proposal here (what, why, how, which files) — don't rewrite the source in silence.** Propose before

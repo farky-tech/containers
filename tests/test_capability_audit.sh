@@ -168,6 +168,18 @@ check "baseline shows adapter script wired" 'printf "%s" "$out_base" | grep -q "
 check "baseline shows Codex hook active" 'printf "%s" "$out_base" | grep -q "codex-hook: SessionStart -> active"'
 check "baseline shows codex count-only honesty label" 'printf "%s" "$out_base" | grep -q "codex-plugin capability check: count-only"'
 
+# ------------------------------------------------- 1b. --memory-dir CLI-consistency no-op
+# Every other backbone script takes --memory-dir; adopters reach for it here too and used to
+# hit "Unknown argument" (field report cc_chobotnice 2026-07-16). Accepted + ignored + noted.
+echo "test: --memory-dir accepted (ignored, noted) instead of failing as unknown argument"
+set +e
+out_memdir="$("$fx/scripts/capability_audit.sh" --memory-dir "$work/whatever mem" 2>&1)"
+rc_memdir=$?
+set -e
+check "--memory-dir exits 0 on a clean fixture" '[ "$rc_memdir" -eq 0 ]'
+check "--memory-dir prints the ignored note" 'printf "%s" "$out_memdir" | grep -q "accepted for backbone CLI consistency"'
+check "legacy --hermes-dir alias also accepted" '"$fx/scripts/capability_audit.sh" --hermes-dir=/tmp/x >/dev/null 2>&1'
+
 # ------------------------------------------------------------- 2. reverse skill drift
 echo "test: reverse drift — undeclared skill physically on disk"
 mkdir -p "$fx/skills/beta"
