@@ -4,7 +4,8 @@
 # Modeled on index_inject (regenerate-then-inject), NOT on a stored file: the registry is ALWAYS
 # recomputed from the blocks before it is shown, so the boot map can never lie about what the
 # instance knows. No "remember to regenerate on close" step — self-correcting by construction.
-# Opt-in nerve (wired via the settings fragment); silent + harmless when there is no store yet.
+# Claude Code wires this through its opt-in fragment; Codex wires it by default from 0.3.11.
+# Silent + harmless when there is no store yet.
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -3,6 +3,35 @@
 Engine version history. Version = single source of truth in `.claude-plugin/plugin.json`.
 Newest first. Adopter-action detail → `MIGRATION.md`.
 
+## 0.4.0 — the Claude Code brain arrives switched ON (auto-wire parity with Codex)
+
+Until now the Codex adapter dispatched all ten nerves automatically on install, while Claude Code
+adopters got only a banner plus a self-report telling them to paste a settings fragment — the same
+product delivering its "works on its own" promise on one host but not the other. 0.4.0 closes that:
+
+- **Claude Code auto-wires the full nerve set** via the shipped `hooks/hooks.json`, which now calls a
+  Claude lifecycle adapter (`adapters/claude-code/hook_dispatch.sh`) for SessionStart / UserPromptSubmit
+  / SessionEnd / PreCompact — at parity with Codex. Paths resolve via `${CLAUDE_PLUGIN_ROOT}` inside the
+  shipped hooks. The adapter is **inert outside projects that carry `memory/MEMORY.md`** — installing the
+  plugin never seeds a brain into an unrelated repo; the brain wakes only where you set one up.
+- **The settings fragment is retired as a required step** — it survives only as an override example
+  (custom memory-dir, or an in-repo fork). The capability self-report now derives offered/wired state
+  from the adapter dispatcher, so a fully auto-wired project reports all-on instead of nagging you.
+- **The prompt journal (`memory/session.md`) is gitignored by default** — a local-only black box of
+  bounded prompt excerpts; gitignoring it keeps a prompt log from being pushed by accident. This
+  reverses the earlier "your call" stance; the privacy default is now on.
+- **Orphan close-debt markers age out.** An `UNCLOSED` marker older than 14 days
+  (`HERMES_UNCLOSED_AGING_DAYS`) is moved aside (loudly) so boot-recovery stops nagging you to close a
+  session that is effectively long gone.
+- Folds in the intervening wiring/manifest fixes (0.3.10–0.3.12): Codex manifest hardening, generic
+  journal identity, honest hook-spec docs.
+
+**Adopter action (Claude Code, upgrading from a pasted fragment):** remove the FMC entries from your
+`.claude/settings.json` / `settings.local.json` — the plugin now wires them itself, and keeping the
+fragment would double-fire the nerves (duplicate journal entries, doubled context injection). If you
+had `memory/session.md` tracked in git, untrack it: `git rm --cached memory/session.md`. Fresh installs
+need no action.
+
 ## 0.3.9 — wiring hygiene from the field: gitignore on every install, honest hook paths, --memory-dir everywhere
 
 An adopter wired 0.3.8 the documented way (docs-only templates + hooks fragment in project

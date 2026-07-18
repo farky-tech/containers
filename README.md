@@ -45,7 +45,8 @@ Every fallback is a learning signal: maybe a new skill, tool, hook, subagent, te
 ## Quickstart
 
 Prerequisites: bash 3.2+ (stock macOS is fine) · `shasum` or `sha1sum` on PATH · Claude Code
-for the plugin surface (Codex CLI: skills only). No network calls, no telemetry, no other deps.
+or Codex 0.144.1+ for the plugin lifecycle surface. No network calls, no external telemetry,
+no other deps.
 
 ### A) As a Claude Code plugin (recommended)
 
@@ -74,15 +75,32 @@ This copies the starter `memory/` files **plus** the script backbone into
 `your-project/memory/scripts/` and stamps `memory/.fmc-source` so drift against the source
 is detectable later (`state_guard.sh --fork-drift`).
 
-### C) Turn on the nerves (opt-in, both modes)
+### C) Host wiring
 
-The invasive parts — boot orientation injection, per-prompt journaling, the close loop — are
-**never wired automatically** (trust boundary). Copy what you want from
-[`adapters/claude-code/settings-fragment.example.json`](./adapters/claude-code/settings-fragment.example.json)
-into your project's `.claude/settings.json` (or `settings.local.json`). Engine paths resolve via
-`${CLAUDE_PLUGIN_ROOT}` for marketplace installs automatically; fork mode uses the documented
-fallback path. After install, the `capability_report` startup line tells you which nerves are
-still off — nothing stays silently missing.
+Both hosts wire all ten shipped nerves **by default**, at parity — installing the container gives you
+a working brain, not a checklist. The nerves are **inert outside projects that carry `memory/MEMORY.md`**:
+the brain wakes only where a brain was set up, so installing the plugin never seeds memory into an
+unrelated repo. Installing a *memory container* is itself the consent to its writes into `memory/`;
+what it does is documented plainly below, and nothing ever leaves your machine.
+
+- **Codex:** the packaged lifecycle adapter (`adapters/codex/hook_dispatch.sh`) runs the full nerve
+  chain. Codex still requires review/trust of the exact plugin hook definitions via `/hooks`.
+- **Claude Code:** the shipped `hooks/hooks.json` calls `adapters/claude-code/hook_dispatch.sh` for
+  each lifecycle event — same full chain, auto-wired on install. Engine paths resolve via
+  `${CLAUDE_PLUGIN_ROOT}` inside plugin-owned hooks. **No manual paste.**
+  [`settings-fragment.example.json`](./adapters/claude-code/settings-fragment.example.json) is **retired
+  as a required step** — it survives only as an *override example* (custom memory-dir, or an in-repo
+  fork that runs the engine from a source checkout instead of an installed plugin).
+
+**What the nerves do (honest disclosure):** the journal nerve (`journal_prompt`) records a bounded
+excerpt of each prompt into `memory/session.md` — the session black box — so continuity survives the
+context window. It is **local-only** (your disk, your subscription; nothing is sent anywhere) and the
+installer **gitignores** `session.md` + the raw archive by default so a prompt log can't be pushed by
+accident. `HERMES_RECALL_OFF=1` / `HERMES_PENDING_OFF=1` roll back the two loud retrieval nerves.
+
+The `capability_report` startup line derives offered/wired state from the active host adapter, so a
+missing nerve cannot disappear silently (and, once auto-wired, it correctly reports all-on rather than
+nagging you to paste a fragment).
 
 First session: read the `using-container` skill; the agent registers itself and starts its journal.
 
@@ -150,6 +168,7 @@ This plugin is a skeleton to ADAPT, not a fixed system to copy 1:1 — and not a
 - **Don't over-bridge — the container IS your agent memory.** Three distinct layers: *project memory* (what the app is → project docs), *constitution* (your behavior rules → CLAUDE.md/AGENTS.md), and *agent memory* (what YOU did/learned/decided/left unfinished → **only this container**). Bridging is for the first two — NOT for your journal/lessons/decisions/carry-forward, which have no other home. **Trap:** the richer your existing memory, the more tempting it is to route every concept to "lives elsewhere" and leave the container hollow. An empty container = no memory of yourself. `BRIDGE.md` leads with what the container HOLDS for exactly this reason. (Field lesson from an early adopter, 2026-06-27.)
 - **Builder is per-instance.** "Builder" = whichever agent actually builds here (Claude Code or Codex). Consultant/builder is a per-project split, not a fixed property of an engine. A handoff written by another instance describes ITS division of work — verify your own role with the user, do not take it as fact about you.
 - **Verify from real state, not memory.** Before writing what you "have" (agents, hooks, tools, schema), check it factually (settings, agent list, `ls`, tool search). Onboarding from recall produces capabilities you do not actually have.
+- **Name the instance once.** `session_note.sh` reads `FMC_INSTANCE_NAME`, otherwise the first `Instance:` / `Owner:` / `Vlastnik:` / `Vlastník:` field in `memory/MEMORY.md`; without either it uses `current instance`. The engine never hardcodes Claude/Codex or a project-specific session number.
 - **Register and feed back.** Add yourself to [`ADOPTION.md`](./ADOPTION.md) and log any gap or fix there — this source plugin improves from real use, not in theory.
 
 ### Host-side reflexes — put these in YOUR `CLAUDE.md` / `AGENTS.md` (not the plugin)
@@ -185,12 +204,13 @@ the full field log lives in `ADOPTION.md`. Engine is versioned (see `CHANGELOG.m
 executable tests under `tests/`.
 
 Runtime truth per host:
-- **Claude Code:** skills + the read-only kernel hooks are active on install; the invasive nerves
-  (injection, journaling, close loop) are opt-in via the settings fragment (see Quickstart C).
+- **Claude Code:** skills + all ten shipped nerves (injection, journaling, close loop) are auto-wired
+  on install via `hooks/hooks.json` → the Claude lifecycle adapter — at parity with Codex, no manual
+  fragment paste. Inert outside projects carrying `memory/MEMORY.md`.
 - **Codex 0.144.1+:** skills plus the dedicated lifecycle adapter are packaged in the plugin.
-  Command hooks remain inactive until their exact definitions are reviewed and trusted through
-  `/hooks`; the adapter is inert outside projects carrying `memory/MEMORY.md`. Subagents remain
-  specs rather than auto-registered runtime agents.
+  After the exact definitions are reviewed and trusted through `/hooks`, all ten shipped nerves
+  run by default; the adapter is inert outside projects carrying `memory/MEMORY.md`. Subagents
+  remain specs rather than auto-registered runtime agents.
 
 Installer safeguards: merge-only by default (never overwrites), backups on any overwrite path,
 symlink and non-regular path refusal, manifest-derived backbone with preflight, executable tests.

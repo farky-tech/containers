@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # capability_report.sh — adopter-facing self-report: which FMC capabilities are WIRED on this
 # project vs. which are OFFERED but never turned on. This closes FMC's OWN silent-fallback gap:
-# a boot nerve is opt-in (trust boundary — never force-wired), so an adopter who never wired it
-# runs half a container and nobody says so — the hole is found by accident. This makes the
-# container SAY it. Read-only; never writes; never blocks a session; quiet when everything is on.
+# the nerves are auto-wired (Fáze A, 2026-07-18: hooks/hooks.json → hook_dispatch.sh), but a trimmed
+# or legacy install may still run half a container and nobody says so — the hole is found by accident.
+# This makes the container SAY it. Read-only; never writes; never blocks a session; quiet when on.
 #
 # "OFFERED" is derived from the selected host adapter — never from a hardcoded parallel list.
-# Claude Code reads settings-fragment.example.json; Codex reads the scripts actually dispatched by
-# adapters/codex/hook_dispatch.sh. "WIRED" means the host adapter references the nerve. For Codex,
-# this report itself runs only after hook trust, so a running startup report is also execution proof.
+# Both Claude and Codex derive offered from the scripts actually dispatched by their host
+# hook_dispatch.sh (running == wired); the retired settings-fragment.example.json is only a FALLBACK
+# offered-source when no dispatch is present. "WIRED" means the host adapter references the nerve.
+# Since the report runs from the dispatch, a running startup report is also execution proof.
 # Honest boundary (0.1.33 audit): "wired" is a settings-TEXT check, not an execution proof —
 # a hook whose path does not resolve still counts as wired here. The root fix for that trap is
 # the fragment defaulting to ${CLAUDE_PLUGIN_ROOT} (resolves wherever the plugin lives); this
@@ -63,15 +64,23 @@ settings_local="$project_dir/.claude/settings.local.json"
 codex_dispatch="$plugin_dir/adapters/codex/hook_dispatch.sh"
 codex_hooks="$plugin_dir/adapters/codex/hooks.json"
 codex_manifest="$plugin_dir/.codex-plugin/plugin.json"
+claude_dispatch="$plugin_dir/adapters/claude-code/hook_dispatch.sh"
+claude_hooks="$plugin_dir/hooks/hooks.json"
 
 # OFFERED = scripts named by the selected host adapter (its real execution source of truth).
 if [ "$host" = "codex" ]; then
   offered="$(grep -oE 'run_script[[:space:]]+"[a-z_]+\.sh"' "$codex_dispatch" 2>/dev/null \
     | sed -E 's/.*"([a-z_]+)\.sh"/\1/' | grep -v '^capability_report$' | sort -u)"
 else
-  fragment="$plugin_dir/adapters/claude-code/settings-fragment.example.json"
-  offered="$(grep -oE 'scripts/[a-z_]+\.sh' "$fragment" 2>/dev/null \
-    | sed 's#scripts/##; s#\.sh##' | sort -u)"
+  # Claude offered = scripts named by the shipped dispatch (real execution SSOT, mirrors codex).
+  # Fall back to the (retired) fragment only on a trimmed install without the dispatch.
+  offered="$(grep -oE 'run_script[[:space:]]+"[a-z_]+\.sh"' "$claude_dispatch" 2>/dev/null \
+    | sed -E 's/.*"([a-z_]+)\.sh"/\1/' | grep -v '^capability_report$' | sort -u)"
+  if [ -z "$offered" ]; then
+    fragment="$plugin_dir/adapters/claude-code/settings-fragment.example.json"
+    offered="$(grep -oE 'scripts/[a-z_]+\.sh' "$fragment" 2>/dev/null \
+      | sed 's#scripts/##; s#\.sh##' | sort -u)"
+  fi
 fi
 # No fragment / nothing declared → stay silent, never break the boot. (Also true on a source
 # checkout without adapters/, or a trimmed install.)
@@ -84,6 +93,14 @@ is_wired() { # script-basename → 0 if referenced by the selected active host a
       && grep -qE "run_script[[:space:]]+\"$1\.sh\"" "$codex_dispatch" 2>/dev/null
     return
   fi
+  # Auto-wire path (ship default): hooks/hooks.json calls the dispatch, dispatch runs this script.
+  # capability_report itself runs FROM the dispatch, so a running startup report is execution proof
+  # — same "running == wired" logic the Codex branch relies on.
+  if grep -qF 'hook_dispatch.sh' "$claude_hooks" 2>/dev/null \
+     && grep -qE "run_script[[:space:]]+\"$1\.sh\"" "$claude_dispatch" 2>/dev/null; then
+    return 0
+  fi
+  # Manual path (meta-hub source checkout / legacy fragment): project settings reference the script.
   grep -q "scripts/$1\.sh" "$settings" 2>/dev/null && return 0
   grep -q "scripts/$1\.sh" "$settings_local" 2>/dev/null && return 0
   return 1
@@ -95,6 +112,9 @@ human() {
     state_inject)      echo "memory orientation at boot (STATE)" ;;
     capability_inject) echo "capability overview + drift" ;;
     index_inject)      echo "folder map at boot" ;;
+    rejstrik_inject)   echo "atom registry at boot (what you know)" ;;
+    pending_inject)    echo "pending human decisions surfacer" ;;
+    recall_inject)     echo "prompt-time memory recall" ;;
     journal_prompt)    echo "session journal capture" ;;
     close_state)       echo "close recovery (unfinished session)" ;;
     brain_health)      echo "weekly brain health" ;;
@@ -124,7 +144,7 @@ case "$mode" in
     if [ "$host" = "codex" ]; then
       echo "→ update the FMC Codex adapter, then review/trust its exact hook definitions via /hooks"
     else
-      echo "→ wire them via the /using-container skill or adapters/claude-code/settings-fragment.example.json"
+      echo "→ FMC ships these auto-wired via hooks/hooks.json; seeing this means the plugin's hooks didn't load — check the install (or see the /using-container skill)."
     fi
     ;;
   close)

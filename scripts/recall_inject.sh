@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# recall_inject.sh — per-prompt recall nerve (UserPromptSubmit; Claude Code host).
+# recall_inject.sh — per-prompt recall nerve (UserPromptSubmit; Claude Code and Codex hosts).
 #
 # The retrieval trigger the brain was missing: when the user's prompt matches stored atoms,
 # inject POINTERS to them (slug + one-line title) as context BEFORE the model answers — so the

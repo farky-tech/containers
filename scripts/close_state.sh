@@ -187,6 +187,24 @@ case "$mode" in
       [ -n "$d" ] || continue
       rmdir "$d" 2>/dev/null && echo "close_state: janitor removed stale lock: $(basename "$d")" >&2
     done < <(find "$state_dir" -maxdepth 1 -name '*.lock' -type d -mmin +60 2>/dev/null)
+    # UNCLOSED markers are debt, not litter — but one nobody resolves must not nag boot-recovery
+    # FOREVER. Cross-SID trap: --close-done clears only the CURRENT session's marker, so a parallel
+    # or background session's marker can orphan and re-surface every boot ("close a session that is
+    # already closed"). Age markers older than AGING_DAYS into .aged/ — LOUDLY (fail-aged, not
+    # fail-silent, per the kernel law): boot-recovery's non-recursive glob stops seeing them, but they
+    # are preserved for inspection, never dropped. (Fáze A, 2026-07-18.)
+    aging_days="${HERMES_UNCLOSED_AGING_DAYS:-14}"
+    aged_dir="$state_dir/.aged"
+    while IFS= read -r m; do
+      [ -n "$m" ] || continue
+      mkdir -p "$aged_dir"
+      if mv "$m" "$aged_dir/" 2>/dev/null; then
+        echo "close_state: janitor aged unclosed marker >${aging_days}d -> .aged/ (boot-recovery will stop nagging it; inspect if needed): $(basename "$m")" >&2
+      else
+        # Fail LOUD, not silent (kernel law): the marker is retained and will re-nag next boot.
+        echo "close_state: janitor FAILED to age $(basename "$m") — mv to .aged/ failed (check perms on $aged_dir); marker retained, will re-nag." >&2
+      fi
+    done < <(find "$state_dir" -maxdepth 1 -name 'UNCLOSED-*.env' -mtime "+$aging_days" 2>/dev/null)
     # Recall-nerve housekeeping (0.3.2) — deliberately OFF the per-prompt hot path, so it
     # lives in this janitor moment: per-session dedupe files expire after 7 days; the
     # telemetry log rotates by size (keep newest tail; brain_health reads a 7-day window).
@@ -288,9 +306,15 @@ case "$mode" in
     # boot — the debt is never silently lost (fail-persistent, not fail-silent). Read-only.
     [ -d "$state_dir" ] || exit 0
     # Sort the queue by started_at (FIFO — oldest debt first). Empty glob -> [ -e ] skips.
+    # Skip markers old enough to be aged THIS SAME boot: the dispatch runs boot-recovery before
+    # init, whose janitor moves markers older than AGING_DAYS to .aged/ — surfacing a close for one
+    # about to move would send the drafter after a file no longer here. (Rationale kept OUT of the
+    # command substitution below on purpose: bash 3.2 mis-parses apostrophes/backticks inside $().)
+    _aging_days="${HERMES_UNCLOSED_AGING_DAYS:-14}"
     queue="$(
       for mf in "$state_dir"/UNCLOSED-*.env; do
         [ -e "$mf" ] || continue
+        [ -n "$(find "$mf" -mtime "+$_aging_days" 2>/dev/null)" ] && continue
         s="$(sed -n 's/^started_at=\(.*\)$/\1/p' "$mf" | head -n1)"
         printf '%s\t%s\n' "${s:-0000}" "$mf"
       done | sort

@@ -68,21 +68,27 @@ HERMES_FAKE_TS='2026-07-01T17:00:00Z' bash "$CS" --memory-dir "$T" --session-id 
 echo "== 14. session-end leaving a marker also clears the live state (no zombie .env) =="
 [ ! -f "$T/.close-state/$SID3.env" ] && ok "no zombie state after unclosed session-end" || bad "zombie state file left"
 
-echo "== 15. init janitor: old settled+orphan .env removed, UNCLOSED kept, fresh kept =="
+echo "== 15. init janitor: old settled+orphan removed; ANCIENT UNCLOSED aged to .aged/; RECENT UNCLOSED + fresh kept =="
 old="$T/.close-state/olddone.env"
 printf 'session_id=olddone\nstarted_at=2026-06-01T00:00:00Z\nclose_done_at=2026-06-01T01:00:00Z\nlast_reminded_at=\nupdated_at=2026-06-01T01:00:00Z\n' > "$old"
 touch -t 202606010100 "$old"
 orph="$T/.close-state/oldorphan.env"
 printf 'session_id=oldorphan\nstarted_at=2026-06-01T00:00:00Z\nclose_done_at=\nlast_reminded_at=\nupdated_at=2026-06-01T00:00:00Z\n' > "$orph"
 touch -t 202606010000 "$orph"
+# ANCIENT UNCLOSED marker (mtime way past the aging window) -> aged to .aged/, LOUDLY (fail-aged).
 unc="$T/.close-state/UNCLOSED-oldunc.env"
 printf 'session_id=oldunc\nunclosed_at=2026-06-01T00:00:00Z\nnote=x\n' > "$unc"
 touch -t 202606010000 "$unc"
+# RECENT UNCLOSED marker (mtime = now) -> real debt, must be KEPT in place (boot-recovery surfaces it).
+recentunc="$T/.close-state/UNCLOSED-recent.env"
+printf 'session_id=recent\nunclosed_at=2026-07-18T00:00:00Z\nnote=x\n' > "$recentunc"
 fresh="$T/.close-state/s1.env"   # from test 1, mtime = now
 HERMES_FAKE_TS='2026-07-01T18:00:00Z' bash "$CS" --memory-dir "$T" --session-id "janitor1" --init >/dev/null 2>&1
-[ ! -f "$old" ] && [ ! -f "$orph" ] && [ -f "$unc" ] && [ -f "$fresh" ] \
-  && ok "janitor: settled+orphan removed, UNCLOSED+fresh kept" \
-  || bad "janitor: old=$([ -f "$old" ] && echo LIVE) orph=$([ -f "$orph" ] && echo LIVE) unc=$([ ! -f "$unc" ] && echo GONE) fresh=$([ ! -f "$fresh" ] && echo GONE)"
+[ ! -f "$old" ] && [ ! -f "$orph" ] \
+  && [ ! -f "$unc" ] && [ -f "$T/.close-state/.aged/UNCLOSED-oldunc.env" ] \
+  && [ -f "$recentunc" ] && [ -f "$fresh" ] \
+  && ok "janitor: settled+orphan removed, ancient UNCLOSED aged to .aged/, recent UNCLOSED+fresh kept" \
+  || bad "janitor: old=$([ -f "$old" ] && echo LIVE) orph=$([ -f "$orph" ] && echo LIVE) aged=$([ ! -f "$T/.close-state/.aged/UNCLOSED-oldunc.env" ] && echo NOTAGED) recent=$([ ! -f "$recentunc" ] && echo GONE) fresh=$([ ! -f "$fresh" ] && echo GONE)"
 
 echo "== 16. init janitor: stale lock removed (crashed session must not mute the loop) =="
 stale="$T/.close-state/stuck.env.lock"

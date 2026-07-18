@@ -265,8 +265,10 @@ check "no doubled-zero line" '[ "$(printf "%s" "$out_e" | grep -c "^0$")" -eq 0 
 # --------------------------------------------------------------- session_note
 echo "test: session_note.sh (session journal)"
 hsn="$work/sn"; mkdir -p "$hsn"
+printf '# contAIner\n\nVlastník: cx_daily\n' > "$hsn/MEMORY.md"
 "$scripts/session_note.sh" --memory-dir "$hsn" --start "rebuild lapac journal" >/dev/null 2>&1
 check "start creates session.md with goal block" '[ -f "$hsn/session.md" ] && grep -q "SESSION GOAL: rebuild lapac journal" "$hsn/session.md"'
+check "journal derives adopter identity from MEMORY owner" 'grep -q "^# Session journal — cx_daily —" "$hsn/session.md" && grep -q "next cx_daily after a crash" "$hsn/session.md"'
 check "goal is a canonical session block" '[ "$(grep -c "hermes:entry kind=session" "$hsn/session.md")" -eq 1 ]'
 "$scripts/session_note.sh" --memory-dir "$hsn" --note "decided: session.md is raw, log.md is distilled" >/dev/null 2>&1
 "$scripts/session_note.sh" --memory-dir "$hsn" --note "built session_note.sh" >/dev/null 2>&1
@@ -280,8 +282,9 @@ check "re-start archives previous journal" '[ -d "$hsn/.session-archive" ] && [ 
 check "fresh journal has only the new goal" '[ "$(grep -c "hermes:entry kind=session" "$hsn/session.md")" -eq 1 ] && grep -q "next session" "$hsn/session.md"'
 # --note auto-creates journal if missing
 hsn2="$work/sn2"; mkdir -p "$hsn2"
-"$scripts/session_note.sh" --memory-dir "$hsn2" --note "first note no start" >/dev/null 2>&1
+FMC_INSTANCE_NAME="codex_expert" "$scripts/session_note.sh" --memory-dir "$hsn2" --note "first note no start" >/dev/null 2>&1
 check "note auto-creates session.md" '[ -f "$hsn2/session.md" ] && grep -q "first note no start" "$hsn2/session.md"'
+check "FMC_INSTANCE_NAME overrides inferred/default identity" 'grep -q "^# Session journal — codex_expert$" "$hsn2/session.md"'
 
 # (kandidat tests removed in F3 — script retired; 2-occurrence candidates now live as tagged
 #  CANDIDATE(type): lines in todo.md.)

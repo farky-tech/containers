@@ -188,11 +188,14 @@ gi="$project/.gitignore"
 for entry in "memory/.close-state/" "memory/.capability-snapshot" "memory/.watch-state" "memory/_rejstrik.md" "memory/.recall-state/"; do
   grep -qxF "$entry" "$gi" || fail "Expected $entry line in $gi after docs-only install"
 done
-if grep -qxF "memory/session.md" "$gi"; then
-  fail "memory/session.md must NOT be auto-ignored (adopter data policy — README What belongs in git)"
-fi
+# Fáze A (2026-07-18): the prompt journal is a LOCAL-ONLY black box (bounded prompt excerpts) and
+# MUST be gitignored by default so a prompt log can't be pushed by accident — the one real privacy
+# default of auto-wire. Curated continuity stays tracked (INDEX.md et al.).
+for entry in "memory/session.md" "memory/.session-archive/" "memory/.capability-inbox"; do
+  grep -qxF "$entry" "$gi" || fail "Expected $entry (journal privacy default) in $gi after docs-only install"
+done
 if grep -qxF "memory/INDEX.md" "$gi"; then
-  fail "memory/INDEX.md must NOT be auto-ignored (adopter data policy)"
+  fail "memory/INDEX.md must NOT be auto-ignored (curated continuity — README What belongs in git)"
 fi
 
 echo "test: missing manifest.yaml fails hard instead of installing a silent partial backbone"

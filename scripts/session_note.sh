@@ -44,6 +44,20 @@ done
 file="$memory_dir/session.md"
 ts="$(hermes_now_utc)"
 
+instance_name="${FMC_INSTANCE_NAME:-}"
+if [ -z "$instance_name" ] && [ -f "$memory_dir/MEMORY.md" ]; then
+  instance_name="$(awk '
+    /^(Instance|Owner|Vlastnik|Vlastník):[[:space:]]*/ {
+      line=$0
+      sub(/^[^:]*:[[:space:]]*/, "", line)
+      print line
+      exit
+    }
+  ' "$memory_dir/MEMORY.md")"
+fi
+instance_name="$(printf '%s' "$instance_name" | tr '\r\n\t' '   ' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | cut -c1-80)"
+[ -n "$instance_name" ] || instance_name="current instance"
+
 if [ "$mode" = "start" ]; then
   if [ "$dry_run" -eq 1 ]; then
     echo "session_note: dry-run — would start new session.md (goal: $text)" >&2
@@ -59,11 +73,11 @@ if [ "$mode" = "start" ]; then
     echo "session_note: archived previous journal -> $archive_dir/session-$stamp.md" >&2
   fi
   {
-    printf '# Session journal (cc) — black box of the live session\n\n'
+    printf '# Session journal — %s — black box of the live session\n\n' "$instance_name"
     printf 'Raw material for the close distillation (session_close → log.md / KNOWLEDGE).\n'
     printf 'Written via session_note.sh; survives compaction. Archived on the next --start after distillation.\n'
     printf 'WRITE WITH CONTEXT — WHY, not just WHAT: why we did/skipped it, what we decided and WHY,\n'
-    printf 'what we ran into. Goal: session 56 (or the next instance after a crash) must understand the\n'
+    printf 'what we ran into. Goal: the next %s after a crash must understand the\n' "$instance_name"
     printf 'THINKING, not just a list of done things. A bare list without why = a broken handoff.\n\n'
     printf -- '---\n'
   } | hermes_atomic_write "$file"
@@ -83,7 +97,7 @@ fi
 # Auto-create a minimal journal if --note is the first call of the session.
 if [ ! -f "$file" ]; then
   mkdir -p "$memory_dir"
-  printf '# Session journal (cc)\n\n---\n' | hermes_atomic_write "$file"
+  printf '# Session journal — %s\n\n---\n' "$instance_name" | hermes_atomic_write "$file"
 fi
 id="$(hermes_block_id "session" "$text")"
 set +e

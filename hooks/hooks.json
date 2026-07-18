@@ -6,11 +6,46 @@
         "hooks": [
           {
             "type": "command",
-            "command": "printf '%s\\n' 'FMC active (farky-memory-container)' 'Silent work is good. Silent fallback is forbidden.' 'If `./memory/MEMORY.md` exists, read it.'"
-          },
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT:-/nonexistent}/adapters/claude-code/hook_dispatch.sh\" session-start",
+            "timeout": 30,
+            "statusMessage": "Loading FMC continuity"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT:-/nonexistent}/scripts/capability_report.sh\" --startup --plugin-dir \"${CLAUDE_PLUGIN_ROOT:-.}\" --project-dir \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null || true"
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT:-/nonexistent}/adapters/claude-code/hook_dispatch.sh\" user-prompt-submit",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT:-/nonexistent}/adapters/claude-code/hook_dispatch.sh\" session-end",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT:-/nonexistent}/adapters/claude-code/hook_dispatch.sh\" pre-compact",
+            "timeout": 5,
+            "statusMessage": "Preserving FMC continuity"
           }
         ]
       }

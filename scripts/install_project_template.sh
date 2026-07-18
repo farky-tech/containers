@@ -439,12 +439,15 @@ fi
 # be a --with-scripts/--refresh-scripts side effect, which left docs-only adopters committing
 # per-session runtime state (.close-state/*.env, generated _rejstrik.md). Entries live in ONE
 # list below and the warn/dry-run texts derive from it — a hardcoded copy in the symlink
-# warning drifted from the real list before (mentioned 2 entries out of 6). Deliberately NOT
-# appended: session.md, .session-archive/, INDEX.md — those are data/curated hybrids and git
-# policy for them is the adopter's call (see README "What belongs in git").
+# warning drifted from the real list before (mentioned 2 entries out of 6). session.md +
+# .session-archive/ ARE appended since Fáze A (2026-07-18): the prompt journal is a LOCAL-ONLY
+# black box (bounded prompt excerpts) and must never be pushed by accident — gitignore is the one
+# real privacy default (installing the container is consent to LOCAL writes, not to publishing a
+# prompt log). Curated continuity (STATE/log/KNOWLEDGE/sessions/) stays tracked. Deliberately NOT
+# appended: INDEX.md — curated, git tracks it (see README "What belongs in git").
 gi_file="$(dirname "$target_memory")/.gitignore"
 gi_base="$(basename "$target_memory")"
-gi_entries=".backups/ .fmc-source _rejstrik.md _hot.md .recall-state/ .recall-hits.log .close-state/ .capability-snapshot .watch-state"
+gi_entries=".backups/ .fmc-source _rejstrik.md _hot.md .recall-state/ .recall-hits.log .close-state/ .capability-snapshot .watch-state session.md .session-archive/ .capability-inbox"
 gi_display=""
 for gi_rel in $gi_entries; do
   gi_display="${gi_display:+$gi_display, }$gi_base/$gi_rel"
@@ -454,6 +457,12 @@ if [ -L "$gi_file" ]; then
 elif [ "$dry_run" -eq 1 ]; then
   echo "would ensure gitignore entries in $gi_file ($gi_display)"
 else
+  # Ensure the existing .gitignore ends with a newline before appending — else the first new entry
+  # concatenates onto a non-LF-terminated last line (".watch-statememory/session.md") and the
+  # privacy entry silently fails to apply/match. (Codex audit 2026-07-18.)
+  if [ -f "$gi_file" ] && [ -s "$gi_file" ] && [ -n "$(tail -c1 "$gi_file" 2>/dev/null)" ]; then
+    printf '\n' >> "$gi_file"
+  fi
   for gi_rel in $gi_entries; do
     gi_line="$gi_base/$gi_rel"
     if [ -f "$gi_file" ] && grep -qxF "$gi_line" "$gi_file" 2>/dev/null; then

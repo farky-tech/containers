@@ -17,9 +17,10 @@ Must not:
 - attempt the close itself. The conscious close (STATE / sessions/ / retro) is the
   MAIN HEAD's job and cannot happen after the session has ended — the head is gone.
 
-Opt-in:
-- invasive (writes memory-state). NOT force-wired into plugin hooks.json; adopters
-  enable via the settings fragment in adapters/claude-code/.
+Auto-wired (Fáze A, 2026-07-18):
+- invasive (writes memory-state), but auto-wired via hooks/hooks.json → the Claude
+  dispatcher, inert without memory/MEMORY.md (installing a brain = consent to write
+  under memory/). SessionEnd runs through the dispatcher.
 
 Fallback:
 - if no hook runtime, the marker isn't left; boot still reads STATE.md.

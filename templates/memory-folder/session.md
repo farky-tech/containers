@@ -1,4 +1,4 @@
-# Session journal (cc) — black box of the live session
+# Session journal — current instance — black box of the live session
 
 Raw material for the close distillation. Written via the **script** `session_note.sh` (not by hand):
 

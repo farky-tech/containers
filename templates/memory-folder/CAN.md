@@ -16,4 +16,4 @@
 - `memory-routing`: when something may be durable learning → proposes/commits via `scripts/memory_route.sh` (approval-gated).
 - `skill-authoring`: when a repeated workflow/fallback should become a skill.
 - `capability-audit`: when routing drifts or capabilities are forgotten → use the installed `capability-audit` skill and run `<plugin-root>/scripts/capability_audit.sh`. This maintainer/source verifier is not shipped in the adopter `memory/scripts/` backbone. Unlike the rest of the backbone it takes no `--memory-dir` (accepted and ignored for CLI consistency) — it audits the plugin checkout, not your memory dir.
-- to-do ledger: long-running/multi-step work, discovered follow-ups, handoff continuity → keep one visible living to-do list and carry forward via `scripts/ledger_carry.sh`. Also keeps the **session journal** (`session.md`) via `scripts/session_note.sh` — see MEMORY.md "How memory is written".
+- **to-do ledger**: long-running/multi-step work, discovered follow-ups, handoff continuity → carry forward via `scripts/ledger_carry.sh`. Also keeps the **session journal** (`session.md`) via `scripts/session_note.sh` — see MEMORY.md "How memory is written".

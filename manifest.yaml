@@ -1,7 +1,7 @@
 name: farky-memory-container
 # version: single source of truth = .claude-plugin/plugin.json. Do NOT duplicate the version here —
 # a version in multiple places is a drift surface (§6g). The manifest neither carries nor reads it (verified by grep).
-status: pre-release   # field-tested on 10+ internal instances; public GitHub release in preparation (0.1.34)
+status: pre-release   # field-tested on 10+ internal instances (Claude Code + Codex); public repo farky-tech/containers is live. The pre-release→released positioning is Farky's poctivost call (DESIGN-mozek §7), so this stays until he decides — the doctor doc-drift warn on it is expected, not a defect.
 principle: "Silent work is good; silent fallback is forbidden."
 runtime:
   codex:
@@ -75,7 +75,7 @@ tests:
   backbone: tests/test_backbone_scripts.sh
   close_state: tests/test_close_state.sh   # 22 fixtures: init/janitor, session_id resolution (stdin/env/explicit/hash), UNCLOSED marker, ledger gate, boot-recovery FIFO + per-SID receipt, concurrency (LOOP gate F3 + Stop-nag/--check F5 tests removed)
   brain_health: tests/test_brain_health.sh # 7 fixtures (F4): --report metric table + date, --due-check cadence (none/fresh/6d/10d), UNCLOSED count
-  capability_report: tests/test_capability_report.sh # 7 fixtures: offered-from-fragment SSOT, wired detection, startup silent/surface, close + ADOPTION line, no-fragment safe, settings.local
+  capability_report: tests/test_capability_report.sh # 8 fixtures: offered-from-DISPATCH (auto-wire: offered==wired, all-on silent), FALLBACK offered-from-fragment when no dispatch, wired detection, startup silent/surface, close + ADOPTION line, no-fragment safe, settings.local, auto-wire trumps partial settings (double-wire trap)
   scenarios: tests/scenarios/README.md
 backbone_scripts:
   # SCRIPTED capability layer — deterministic, idempotent, atomic, host-agnostic CLIs.
@@ -90,17 +90,20 @@ backbone_scripts:
     - scripts/gen_agents.sh        # subagents/ + manifest -> agents/ (SSOT). NOTE: agents//subagents/ merge deferred (F3 plan-review: source:/subagent_prompts/adapter contracts = risk > cosmetic gain).
     - scripts/brain_health.sh      # weekly brain-health observer (F4): --report writes memory/health/<date>.md; --due-check = SessionStart cadence advisory. Measures, never gates. Replaces the retired loop gate.
     - scripts/state_guard.sh       # state guard: watches for drift of state artifacts from reality. --release-drift (plugin.json vs latest CHANGELOG block, MAINTAINER) · --book-drift (living book vs plugin.json, MAINTAINER) · --adopter-drift (adopter's active version vs max in marketplace cache, ADOPTER opt-in); index/STATE/vision discovery after layer 1 (repo order). Advisory — never blocks.
-    - scripts/capability_report.sh # adopter self-report: WIRED vs OFFERED FMC nerves. --startup = kernel advisory "what you're missing" (force-wired in hooks.json, read-only, quiet when all wired) · --close = report + ADOPTION-ready line. Closes FMC's OWN silent-fallback (an opt-in nerve never wired = invisible). Offered set derived from the adapter fragment (SSOT).
+    - scripts/capability_report.sh # adopter self-report: WIRED vs OFFERED FMC nerves. --startup = kernel advisory "what you're missing" (force-wired in hooks.json, read-only, quiet when all wired) · --close = report + ADOPTION-ready line. Closes FMC's OWN silent-fallback. Offered set is derived from the selected host adapter's dispatcher (both Claude and Codex now dispatch via hook_dispatch.sh; the retired Claude fragment is only a fallback when no dispatch is present).
     # (maintainer-only, NOT backbone / not shipped: scripts/watch.sh — source-curator drift tap
     #  for ADOPTION/manifest triage; wired only in the source repo's own SessionStart, same
     #  pattern as state_guard's maintainer modes. See watch.sh header. 0.1.33 audit.)
     # --- boot nerves (info-injection at SessionStart / UserPromptSubmit) -----------------
     # Promoted from cc_farky-local .claude/scripts (2026-07-06). Principle: info-injection > reminder
     # — a cold instance receives orientation/capabilities as ready FACTS in context, not tasks to open
-    # files. OPT-IN: wired only via adapters/claude-code/settings-fragment.example.json, NEVER
-    # force-wired into hooks/hooks.json — adopters must not inherit invasive context injection across
-    # the trust boundary (§6d). They are declared here so the installer (--with-scripts, grep of SSOT)
-    # delivers them and so their existence is honest, not hidden.
+    # files. AUTO-WIRED (Fáze A, 2026-07-18): the shipped hooks/hooks.json calls
+    # adapters/claude-code/hook_dispatch.sh, which fires this whole nerve chain at parity with the
+    # Codex dispatcher. The dispatcher is INERT unless the project carries memory/MEMORY.md, so there
+    # is no invasive injection across the trust boundary (§6d) — installing a memory container = consent
+    # to write under memory/. They are declared here so the installer (--with-scripts, grep of SSOT)
+    # delivers them and so their existence is honest, not hidden. (settings-fragment.example.json is
+    # retired as a required step — hand-wire override example only.)
     - scripts/state_inject.sh       # SessionStart: inject memory/STATE.md (orientation, read-first)
     - scripts/capability_inject.sh # SessionStart: inject FMC backbone + capability drift (newly gained/gone) + inbox reminder
     - scripts/index_inject.sh      # SessionStart: inject folder-INDEX map; default memory/, gen_index:auto = top-level repo, gen_index:tree = recursive safe tree (0.3.4); calls gen_index.sh
@@ -108,7 +111,7 @@ backbone_scripts:
     - scripts/journal_prompt.sh    # UserPromptSubmit: silently feed the user's prompt into memory/session.md (write-only); calls session_note.sh
     - scripts/gen_rejstrik.sh      # helper: knowledge blocks -> _rejstrik.md atom registry (self-regen from data; default importance by kind); --tsv = machine contract for tools
     - scripts/rejstrik_inject.sh   # SessionStart: regenerate + inject the atom registry (what I know); calls gen_rejstrik.sh
-    - scripts/recall_inject.sh     # UserPromptSubmit (Claude host, 0.3.2): match the prompt against a FRESH atom registry (gen_rejstrik --tsv) and inject POINTERS to matching atoms (BM25 + CZ fold/stem, anti-noise gates, per-session dedupe, fail-closed, telemetry). Kill switch HERMES_RECALL_OFF=1. NOT dispatched on the Codex host (trust boundary — adapter opt-in only).
+    - scripts/recall_inject.sh     # UserPromptSubmit: match the prompt against a FRESH atom registry (gen_rejstrik --tsv) and inject POINTERS to matching atoms (BM25 + CZ fold/stem, anti-noise gates, per-session dedupe, fail-closed, telemetry). Codex dispatches it by default from 0.3.11; kill switch HERMES_RECALL_OFF=1.
     - scripts/pending_inject.sh    # SessionStart (0.3.2): announce open "PENDING(<owner>):" ledger items LOUDLY every boot until the human resolves them (fence-aware, bounded output, read-only). Kill switch HERMES_PENDING_OFF=1.
     - scripts/recall.sh            # retrieval: drill one atom out of the cold store by <id> or --query "words" (a capability, not a gate); logs the consumed side of the recall funnel (0.3.2)
     - scripts/lint_memory.sh       # advisory hygiene over atoms (dup id / bad importance-origin / no title / dead [[id]] link); feeds brain_health
@@ -125,11 +128,11 @@ claude_binding:
     # Only status=active hooks are emitted into hooks/hooks.json. spec-only are declared, not wired (honest capability map, not silent omission).
     - event: SessionStart
       status: active
-      purpose: "Inject the kernel sentinel + pointer to project memory/MEMORY.md (<600 tokens). Must never block when the memory/ folder is absent. (Self-improvement loop: may also init close_state tracking — opt-in.)"
+      purpose: "Auto-wired via hooks/hooks.json → adapters/claude-code/hook_dispatch.sh (Fáze A, 2026-07-18): kernel sentinel + the whole nerve chain in order — close_state (boot-recovery + init), brain_health --due-check, state_inject, capability_inject, rejstrik_inject, pending_inject, index_inject, state_guard (fork-drift + adopter-drift), capability_report --startup. Parity with the Codex dispatcher; inert without memory/MEMORY.md. Must never block when the memory/ folder is absent."
       source_spec: hooks/session-start.md
     - event: UserPromptSubmit
-      status: spec-only
-      reason: "Advisory delivery; wiring as a command hook is noisy. Routed via capability-routing skill instead."
+      status: active
+      purpose: "Auto-wired via hooks/hooks.json → adapters/claude-code/hook_dispatch.sh (Fáze A, 2026-07-18): journal_prompt (session black box) + recall_inject (prompt-time pointers). Parity with the Codex dispatcher. Inert without memory/MEMORY.md."
       source_spec: hooks/user-prompt-submit.md
     - event: PostToolUse
       status: spec-only
@@ -140,12 +143,12 @@ claude_binding:
       reason: "RETIRED F4 (0.1.27): the Stop close-debt nag (close_state.sh --check) is UNWIRED. It was a leftover from the gate era — it never enforced (close still died 8–11 July with it active) and it misfired mid-work (the journal only logs user prompts, so long work turns read as idle). Its job is covered without nagging: SessionEnd leaves an UNCLOSED marker → boot-recovery surfaces it → auto-recovery. The --check mode was fully REMOVED from close_state.sh in F5 (0.1.28) — this entry stays as the dated record; do not wire a Stop hook (see hooks/stop.md)."
       source_spec: hooks/stop.md
     - event: SessionEnd
-      status: spec-only
-      reason: "Finalize close-debt on real session end (close_state.sh --session-end): leave an UNCLOSED marker or clear. Side-effects only; cannot do the main-head close. Opt-in via adapters/ settings fragment."
+      status: active
+      purpose: "Auto-wired (Fáze A): close_state.sh --session-end finalizes close-debt (leave an UNCLOSED marker or clear). Side-effects only; cannot do the main-head close. Claude-only lifecycle event (Codex has no analogue)."
       source_spec: hooks/session-end.md
     - event: PreCompact
-      status: spec-only
-      reason: "Context-loss guard: nudge to flush the live thread to disk before compaction. Non-blocking. Opt-in via adapters/ settings fragment."
+      status: active
+      purpose: "Auto-wired (Fáze A): context-loss guard — nudge to flush the live thread to disk before compaction. Non-blocking advisory echo."
       source_spec: hooks/pre-compact.md
   agents:
     # Generated into agents/<name>.md by scripts/gen_agents.sh = YAML frontmatter
@@ -188,10 +191,10 @@ codex_binding:
   hooks:
     - event: SessionStart
       status: active
-      purpose: "Sequentially recover close debt, initialize session state, run health/drift checks, inject STATE/capabilities, and refresh the opted-in folder map."
+      purpose: "Sequentially recover close debt, initialize session state, run health/drift checks, inject STATE/capabilities/atom registry/pending decisions, and refresh the opted-in folder map."
     - event: UserPromptSubmit
       status: active
-      purpose: "Capture the user prompt into memory/session.md through journal_prompt.sh with redaction."
+      purpose: "Capture the user prompt into memory/session.md with redaction and inject matching memory pointers through recall_inject.sh."
     - event: PreCompact
       status: active
       purpose: "Surface a non-blocking context-loss advisory before compaction."

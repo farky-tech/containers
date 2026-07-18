@@ -16,8 +16,8 @@ Must not:
 - block compaction (return non-zero). Compaction is needed; we protect memory,
   we do not veto the compaction.
 
-Opt-in:
-- advisory; enable via the settings fragment in adapters/claude-code/.
+Auto-wired (Fáze A, 2026-07-18):
+- advisory; wired via hooks/hooks.json → the Claude dispatcher, inert without memory/MEMORY.md.
 
 Fallback:
 - if no hook runtime, rely on the ongoing journal + main-head discipline.
