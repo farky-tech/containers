@@ -1,4 +1,4 @@
-# FMC — farky-memory-container
+# FMC — persistent memory for AI coding agents (Claude Code · Codex)
 
 **A portable memory container ("brain in a box") for AI coding agents.** Install it into a
 project and the agent stops being an amnesiac: it knows who it is, what it did yesterday, what
