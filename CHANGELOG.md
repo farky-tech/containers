@@ -3,6 +3,47 @@
 Engine version history. Version = single source of truth in `.claude-plugin/plugin.json`.
 Newest first. Adopter-action detail → `MIGRATION.md`.
 
+## 0.4.2 — a behavioral reflex nerve (both adapters, at parity)
+
+Field use surfaced a gap of the same class on two hosts: the container ships skills for keeping a
+running to-do ledger and for reaching for the right skill, but neither adapter fired anything at
+`UserPromptSubmit` to actually trigger them each turn. An agent knew the rule at boot and then drifted
+on the next prompt — most visibly by throwing away its accumulated to-do list on a pivot and starting a
+fresh partial one. That is the "later = never" failure, now in the behavioral layer rather than delivery.
+
+- Both adapters (`adapters/codex` → `update_plan`, `adapters/claude-code` → `TodoWrite`) now emit a
+  short **behavioral reflex** on every `UserPromptSubmit`: keep ONE cumulative visible to-do ledger for
+  the whole session (a pivot MERGES into the same list instead of replacing it; done items stay checked;
+  a finished phase does not close the ledger), and check whether a skill covers each non-trivial step.
+- The reflex **ships enabled and fires every prompt** — a deliberately overt nerve, a distinct category
+  from the silent memory nerves (journal/recall): a nudge you cannot see does not nudge. It is not a
+  "silent fallback" violation.
+- **Parity is enforced.** The reflex lives in both host adapters in step (host-specific plan tool), not
+  one — matching the delivery parity 0.4.0 established. Nerve count is unchanged (the reflex is an inline
+  emit, not a script), so the capability self-report still sees the full set wired.
+
+**Adopter action:** refresh the runtime plugin; for an in-repo backbone copy run
+`install_project_template.sh --refresh-scripts <project>` (engine only — it never rewrites `memory/*.md`).
+The reflex is part of the adapters, so it auto-wires — nothing to paste. A fresh top-level session
+confirms it: after a pivot the agent keeps one visible to-do ledger, done items included.
+
+## 0.4.1 — truthful session identity across hosts
+
+FMC's SessionStart and close both ran through the adopter backbone, but a Codex host provides its
+identity as `CODEX_THREAD_ID`, which the close-debt tracker did not know. Without it, a start or close
+lacking an explicit id wrote into a shared `nosession` bucket — so several sessions could share one
+state, and a conscious close might miss the session that start initialized.
+
+- Identity now resolves in order: explicit `--session-id` → hook payload → `CODEX_THREAD_ID` →
+  `CLAUDE_CODE_SESSION_ID`.
+- `--init` and `--close-done` with no real identity now fail loudly (exit 1) instead of inventing a
+  `nosession` bucket.
+- Regression tests cover the source priority, both host adapters, and the fail-loud branch.
+
+**Adopter action:** refresh the runtime plugin and, for an in-repo backbone copy, run
+`install_project_template.sh --refresh-scripts <project>`. A fresh top-level session confirms the new
+version is actually loaded.
+
 ## 0.4.0 — the Claude Code brain arrives switched ON (auto-wire parity with Codex)
 
 Until now the Codex adapter dispatched all ten nerves automatically on install, while Claude Code

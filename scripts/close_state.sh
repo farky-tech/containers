@@ -67,17 +67,12 @@ done
 # Resolve session id, in priority order:
 #   1. explicit --session-id (wins — tests, manual runs).
 #   2. hook JSON on stdin (hooks pipe it; only read when stdin is NOT a tty).
-#   3. $CLAUDE_CODE_SESSION_ID env var (set for interactive Bash calls — this is how
-#      --close-done resolves: the close skill runs interactively with a tty on stdin,
-#      so path 2 is skipped and there is no payload. WITHOUT this the id stayed empty
-#      → key="nosession" → the close wrote close_done_at to nosession.env while the
-#      real session's Stop/SessionEnd hooks kept their own <sid>.env → the reminder
-#      never went silent and UNCLOSED-<sid> markers piled up forever. Verified real
-#      env name is CLAUDE_CODE_SESSION_ID, not CLAUDE_SESSION_ID.)
+#   3. $CODEX_THREAD_ID env var (Codex host identity).
+#   4. $CLAUDE_CODE_SESSION_ID env var (Claude Code host identity).
 # The hook JSON on stdin is delivered ONLY by the SessionStart/SessionEnd hooks — i.e.
 # only --init and --session-end ever legitimately receive it. Every other mode resolves
 # its id elsewhere: --close-done (close skill / fmc-close subagent) takes --session-id or
-# $CLAUDE_CODE_SESSION_ID; --boot-recovery/--status use no id at all. So only the two
+# a host identity env var; --boot-recovery/--status use no id at all. So only the two
 # hook-driven modes may touch stdin — WHITELIST them (not blacklist the rest): safe-by-
 # default, a future mode won't silently start reading stdin. Blacklisting missed exactly
 # this: --close-done was not excluded, so a headless close (subagent / no tty, no
@@ -90,11 +85,20 @@ if [ -z "$sid" ] && [ ! -t 0 ] && { [ "$mode" = "init" ] || [ "$mode" = "session
   payload=""; IFS= read -r -d '' -t 2 payload 2>/dev/null || true
   sid="$(printf '%s' "$payload" | sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
 fi
+[ -n "$sid" ] || sid="${CODEX_THREAD_ID:-}"
 [ -n "$sid" ] || sid="${CLAUDE_CODE_SESSION_ID:-}"
+
+# Starting or settling close debt without a real host identity would merge unrelated
+# sessions into one invented bucket. Fail honestly instead. Status/boot-recovery do not
+# target a live session and may continue without an id.
+if [ -z "$sid" ] && { [ "$mode" = "init" ] || [ "$mode" = "close-done" ]; }; then
+  echo "close_state: $mode requires a session id (--session-id, hook payload, CODEX_THREAD_ID, or CLAUDE_CODE_SESSION_ID)" >&2
+  exit 1
+fi
 # Build a safe, collision-free state key from the raw session id:
 #  - if the id round-trips through the safe-char filter unchanged, use it (readable);
 #  - else hash the RAW id (no lossy collisions like a/b -> ab);
-#  - empty id -> a fixed bucket (last resort; a hook payload should always carry one).
+#  - empty id -> a fixed debug bucket only for non-targeting modes.
 raw_sid="$sid"
 safe_sid="$(printf '%s' "$raw_sid" | tr -cd 'A-Za-z0-9._-')"
 if [ -z "$raw_sid" ]; then

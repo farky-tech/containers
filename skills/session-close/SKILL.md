@@ -61,7 +61,10 @@ in a subagent, not in the head's memory.
    the public repo") goes in as `--kind fact` — facts that stay only in chat/STATE are exactly the
    ones the next instance cannot recall (proven live 2026-07-15).
 5. **Settle the close-debt tracker:** `scripts/close_state.sh --memory-dir ./memory --close-done --ledger-ok`
-   (`--ledger-ok` asserts step 1's reconcile happened; session id resolves from `$CLAUDE_CODE_SESSION_ID`).
+   (`--ledger-ok` asserts step 1's reconcile happened). Hook-driven modes resolve identity from an
+   explicit `--session-id`, hook payload, `$CODEX_THREAD_ID`, then `$CLAUDE_CODE_SESSION_ID`;
+   interactive `--close-done` has no hook payload and uses the same order without that step. If no real
+   identity is available, stop and surface the binding gap; never create or settle shared `nosession` state.
    Without this SessionEnd leaves an UNCLOSED marker that boot-recovery surfaces next start.
 6. **FMC self-report:** `scripts/capability_report.sh --close --project-dir .` shows which FMC nerves were
    WIRED this session vs. which are available but NOT turned on, and emits an `ADOPTION.md`-ready line if a

@@ -31,8 +31,9 @@ HERMES_FAKE_TS='2026-07-01T10:00:00Z' bash "$CS" --memory-dir "$T" --session-id 
 bash "$CS" --memory-dir "$T" --session-id "$SID" --status | grep -q 'started_at=2026-07-01T10:00:00Z' && ok "init records baseline" || bad "init"
 
 echo "== 8. session_id from stdin JSON =="
-echo '{"session_id":"json-9","hook_event_name":"SessionStart"}' | HERMES_FAKE_TS='2026-07-01T12:00:00Z' bash "$CS" --memory-dir "$T" --init >/dev/null 2>&1
-[ -f "$T/.close-state/json-9.env" ] && ok "extracts session_id from stdin" || bad "stdin extract: $(ls "$T/.close-state")"
+echo '{"session_id":"json-9","hook_event_name":"SessionStart"}' | CODEX_THREAD_ID='codex-should-lose' CLAUDE_CODE_SESSION_ID='claude-should-lose' HERMES_FAKE_TS='2026-07-01T12:00:00Z' bash "$CS" --memory-dir "$T" --init >/dev/null 2>&1
+[ -f "$T/.close-state/json-9.env" ] && [ ! -f "$T/.close-state/codex-should-lose.env" ] && [ ! -f "$T/.close-state/claude-should-lose.env" ] \
+  && ok "hook session_id wins over host env" || bad "stdin priority: $(ls "$T/.close-state")"
 
 echo "== 9. unsafe session_id -> hashed key, NO collision (a/b vs ab) =="
 HERMES_FAKE_TS='2026-07-01T12:00:00Z' bash "$CS" --memory-dir "$T" --session-id 'a/b' --init >/dev/null 2>&1
@@ -104,9 +105,9 @@ echo "== 21. session-id from CLAUDE_CODE_SESSION_ID env (interactive --close-don
 # hook payload. Before the fix sid stayed empty -> key=nosession -> the real
 # session's marker never cleared. Now it falls back to the env var.
 TE="$(mktemp -d)"
-CLAUDE_CODE_SESSION_ID="env-sid-42" HERMES_FAKE_TS='2026-07-01T21:00:00Z' bash "$CS" --memory-dir "$TE" --init </dev/null >/dev/null 2>&1
+env -u CODEX_THREAD_ID CLAUDE_CODE_SESSION_ID="env-sid-42" HERMES_FAKE_TS='2026-07-01T21:00:00Z' bash "$CS" --memory-dir "$TE" --init </dev/null >/dev/null 2>&1
 journal "$TE" '2026-07-01T21:01:00Z' 2
-CLAUDE_CODE_SESSION_ID="env-sid-42" HERMES_FAKE_TS='2026-07-01T21:30:00Z' bash "$CS" --memory-dir "$TE" --close-done </dev/null >/dev/null 2>&1
+env -u CODEX_THREAD_ID CLAUDE_CODE_SESSION_ID="env-sid-42" HERMES_FAKE_TS='2026-07-01T21:30:00Z' bash "$CS" --memory-dir "$TE" --close-done </dev/null >/dev/null 2>&1
 if [ -f "$TE/.close-state/env-sid-42.env" ] && [ ! -f "$TE/.close-state/nosession.env" ] \
    && grep -q 'close_done_at=2026-07-01T21:30:00Z' "$TE/.close-state/env-sid-42.env"; then
   ok "env-var session id resolves close-done to the real session (not nosession)"
@@ -115,11 +116,32 @@ else
 fi
 rm -rf "$TE"
 
+echo "== 21a. session-id from CODEX_THREAD_ID env (Codex init + close-done) =="
+TCX="$(mktemp -d)"
+env -u CLAUDE_CODE_SESSION_ID CODEX_THREAD_ID="codex-thread-42" HERMES_FAKE_TS='2026-07-01T22:00:00Z' bash "$CS" --memory-dir "$TCX" --init </dev/null >/dev/null 2>&1
+journal "$TCX" '2026-07-01T22:01:00Z' 2
+env -u CLAUDE_CODE_SESSION_ID CODEX_THREAD_ID="codex-thread-42" HERMES_FAKE_TS='2026-07-01T22:30:00Z' bash "$CS" --memory-dir "$TCX" --close-done </dev/null >/dev/null 2>&1
+if [ -f "$TCX/.close-state/codex-thread-42.env" ] && [ ! -f "$TCX/.close-state/nosession.env" ] \
+   && grep -q 'close_done_at=2026-07-01T22:30:00Z' "$TCX/.close-state/codex-thread-42.env"; then
+  ok "CODEX_THREAD_ID resolves init and close-done to the real thread"
+else
+  bad "Codex env fallback: files=[$(ls "$TCX/.close-state" 2>/dev/null | tr '\n' ' ')]"
+fi
+rm -rf "$TCX"
+
+echo "== 21b. CODEX_THREAD_ID wins over CLAUDE_CODE_SESSION_ID when both exist =="
+THOST="$(mktemp -d)"
+CODEX_THREAD_ID="codex-wins" CLAUDE_CODE_SESSION_ID="claude-loses" HERMES_FAKE_TS='2026-07-01T22:45:00Z' bash "$CS" --memory-dir "$THOST" --init </dev/null >/dev/null 2>&1
+[ -f "$THOST/.close-state/codex-wins.env" ] && [ ! -f "$THOST/.close-state/claude-loses.env" ] \
+  && ok "Codex host identity wins over Claude host identity" || bad "host priority: $(ls "$THOST/.close-state" 2>/dev/null | tr '\n' ' ')"
+rm -rf "$THOST"
+
 echo "== 22. explicit --session-id still wins over env var =="
 TE2="$(mktemp -d)"
-CLAUDE_CODE_SESSION_ID="env-should-lose" HERMES_FAKE_TS='2026-07-01T23:00:00Z' bash "$CS" --memory-dir "$TE2" --session-id "explicit-wins" --init </dev/null >/dev/null 2>&1
-[ -f "$TE2/.close-state/explicit-wins.env" ] && [ ! -f "$TE2/.close-state/env-should-lose.env" ] \
-  && ok "explicit --session-id wins over env" || bad "priority: $(ls "$TE2/.close-state" 2>/dev/null | tr '\n' ' ')"
+echo '{"session_id":"payload-should-lose"}' | CODEX_THREAD_ID="codex-should-lose" CLAUDE_CODE_SESSION_ID="claude-should-lose" HERMES_FAKE_TS='2026-07-01T23:00:00Z' bash "$CS" --memory-dir "$TE2" --session-id "explicit-wins" --init >/dev/null 2>&1
+[ -f "$TE2/.close-state/explicit-wins.env" ] && [ ! -f "$TE2/.close-state/codex-should-lose.env" ] && [ ! -f "$TE2/.close-state/claude-should-lose.env" ] \
+  && [ ! -f "$TE2/.close-state/payload-should-lose.env" ] \
+  && ok "explicit --session-id wins over payload and env" || bad "priority: $(ls "$TE2/.close-state" 2>/dev/null | tr '\n' ' ')"
 rm -rf "$TE2"
 
 echo "== 23. LEDGER GATE: open todo.md items + no --ledger-ok -> close-done refused (exit 2) =="
@@ -185,13 +207,15 @@ else
 fi
 rm -rf "$TBE"
 
-echo "== 30. empty session id (no flag, no stdin, no env) -> 'nosession' bucket =="
-# The last-resort branch: with CLAUDE_CODE_SESSION_ID unset AND no --session-id AND
-# no stdin payload, the key falls back to the fixed 'nosession' bucket. env -u makes
-# this deterministic even though the surrounding CC run has the var set.
+echo "== 30. empty session id fails loud for init and close-done =="
 TNS="$(mktemp -d)"
-env -u CLAUDE_CODE_SESSION_ID HERMES_FAKE_TS='2026-07-03T09:00:00Z' bash "$CS" --memory-dir "$TNS" --init </dev/null >/dev/null 2>&1
-[ -f "$TNS/.close-state/nosession.env" ] && ok "empty id -> nosession bucket" || bad "nosession: $(ls "$TNS/.close-state" 2>/dev/null | tr '\n' ' ')"
+init_err="$(env -u CODEX_THREAD_ID -u CLAUDE_CODE_SESSION_ID HERMES_FAKE_TS='2026-07-03T09:00:00Z' bash "$CS" --memory-dir "$TNS" --init </dev/null 2>&1)"; init_rc=$?
+close_err="$(env -u CODEX_THREAD_ID -u CLAUDE_CODE_SESSION_ID HERMES_FAKE_TS='2026-07-03T09:01:00Z' bash "$CS" --memory-dir "$TNS" --close-done </dev/null 2>&1)"; close_rc=$?
+[ "$init_rc" -eq 1 ] && [ "$close_rc" -eq 1 ] && [ ! -e "$TNS/.close-state/nosession.env" ] \
+  && printf '%s' "$init_err" | grep -q 'requires a session id' \
+  && printf '%s' "$close_err" | grep -q 'requires a session id' \
+  && ok "missing identity refuses init and close-done without nosession state" \
+  || bad "missing-id contract: init=$init_rc close=$close_rc files=[$(ls "$TNS/.close-state" 2>/dev/null | tr '\n' ' ')]"
 rm -rf "$TNS"
 
 echo "== 31. boot-recovery: 2 dead markers + 1 live -> surface exactly the 2 dead, FIFO by started_at =="

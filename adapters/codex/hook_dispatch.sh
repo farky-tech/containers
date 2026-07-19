@@ -91,6 +91,13 @@ case "$event" in
     # recall stays silent; then recall may emit task-relevant pointers into model context.
     printf '%s' "$payload" | run_script "journal_prompt.sh" --memory-dir "$memory_dir"
     printf '%s' "$payload" | run_script "recall_inject.sh" --memory-dir "$memory_dir"
+
+    # Behavioral reflex — overt BY DESIGN (a nudge you cannot see does not nudge), a distinct
+    # category from the silent memory nerves above. Ships ENABLED, fires every prompt, and is kept
+    # in step with the Claude adapter (same reflex, host-specific plan tool). It holds ONE cumulative
+    # session to-do ledger alive across pivots and pins the skill-use reflex to every step.
+    printf '%s\n' \
+      'FMC reflex — multi-step work: keep ONE cumulative visible to-do ledger (update_plan) for the WHOLE session — on a new direction/pivot MERGE into the same list, keep done items checked, NEVER replace the history with a fresh partial plan; a finished phase does not close the session ledger. Before each non-trivial step: does a skill cover it? -> find and use it.'
     ;;
 
   pre-compact)

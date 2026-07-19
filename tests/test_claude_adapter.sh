@@ -46,8 +46,8 @@ check 'SessionStart surfaces pending human decisions' \
   'printf "%s" "$out" | grep -q "PENDING DECISIONS" && printf "%s" "$out" | grep -q "Potvrdit Claude adapter fixture"'
 check 'SessionStart injects the whole-repo map for a managed root INDEX' \
   'printf "%s" "$out" | grep -q "repo — what lives where"'
-check 'close-state initialization was written' \
-  'find "$project/memory/.close-state" -type f -name '\''*.env'\'' -print -quit 2>/dev/null | grep -q .'
+check 'close-state uses hook session_id and never invents nosession' \
+  '[ -f "$project/memory/.close-state/claude-adapter-test.env" ] && [ ! -f "$project/memory/.close-state/nosession.env" ]'
 check 'capability_report stays SILENT (auto-wired = all-on, no fragment nag)' \
   '! printf "%s" "$out" | grep -q "wire them" && ! printf "%s" "$out" | grep -q "of 10 wired"'
 
@@ -59,6 +59,8 @@ check 'prompt hook emits a matching recall pointer' \
 check 'prompt reached the session journal' 'grep -q "Ktere FMC nervy" "$project/memory/session.md"'
 check 'secret-looking value was redacted' \
   'grep -q "\[REDACTED\]" "$project/memory/session.md" && ! grep -q "sk-ABCDEFGHIJKLMNOPQRST" "$project/memory/session.md"'
+check 'prompt hook fires the behavioral lapač/skill reflex (enabled, host-specific tool)' \
+  'printf "%s" "$pout" | grep -q "FMC reflex" && printf "%s" "$pout" | grep -q "cumulative visible to-do ledger" && printf "%s" "$pout" | grep -q "TodoWrite"'
 
 echo '== 4. SessionEnd finalizes close-debt (Claude-only event) =='
 # Two prompts already? one above; add one more so work_threshold (2) is met -> UNCLOSED marker on end.

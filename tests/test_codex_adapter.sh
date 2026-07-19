@@ -52,8 +52,8 @@ else
 fi
 
 echo '== 2. SessionStart runs the FMC nerves sequentially =='
-payload="{\"session_id\":\"codex-adapter-test\",\"cwd\":\"$project\",\"hook_event_name\":\"SessionStart\",\"source\":\"startup\"}"
-out="$(cd "$project" && printf '%s' "$payload" | PLUGIN_ROOT="$plugin_root" bash "$dispatch" session-start)"
+payload="{\"cwd\":\"$project\",\"hook_event_name\":\"SessionStart\",\"source\":\"startup\"}"
+out="$(cd "$project" && printf '%s' "$payload" | CODEX_THREAD_ID="codex-adapter-test" PLUGIN_ROOT="$plugin_root" bash "$dispatch" session-start)"
 check 'SessionStart identifies FMC' 'printf "%s" "$out" | grep -q "FMC active"'
 check 'SessionStart injects the regenerated atom registry' \
   'printf "%s" "$out" | grep -q "REJSTŘÍK" && printf "%s" "$out" | grep -q "codex-adapter-vsechny-nervy"'
@@ -63,8 +63,8 @@ check 'SessionStart injects the whole-repo map for a managed root INDEX' \
   'printf "%s" "$out" | grep -q "repo — what lives where"'
 check 'root INDEX was refreshed and lists docs' 'grep -q '\''`docs/`'\'' "$project/INDEX.md"'
 check 'memory INDEX was created' '[ -f "$project/memory/INDEX.md" ]'
-check 'close-state initialization was written' \
-  'find "$project/memory/.close-state" -type f -name '\''*.env'\'' -print -quit 2>/dev/null | grep -q .'
+check 'close-state uses CODEX_THREAD_ID and never invents nosession' \
+  '[ -f "$project/memory/.close-state/codex-adapter-test.env" ] && [ ! -f "$project/memory/.close-state/nosession.env" ]'
 
 echo '== 3. UserPromptSubmit captures, redacts and recalls =='
 prompt_payload="{\"session_id\":\"codex-adapter-test\",\"cwd\":\"$project\",\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"Ktere FMC nervy zapojuje Codex adapter defaultne? sk-ABCDEFGHIJKLMNOPQRST\"}"
@@ -74,6 +74,8 @@ check 'prompt hook emits a matching recall pointer' \
 check 'prompt reached the session journal' 'grep -q "Ktere FMC nervy" "$project/memory/session.md"'
 check 'secret-looking value was redacted' \
   'grep -q "\[REDACTED\]" "$project/memory/session.md" && ! grep -q "sk-ABCDEFGHIJKLMNOPQRST" "$project/memory/session.md"'
+check 'prompt hook fires the behavioral lapač/skill reflex (enabled, host-specific tool)' \
+  'printf "%s" "$prompt_out" | grep -q "FMC reflex" && printf "%s" "$prompt_out" | grep -q "cumulative visible to-do ledger" && printf "%s" "$prompt_out" | grep -q "update_plan"'
 
 echo '== 4. PreCompact and non-FMC boundary =='
 compact_out="$(cd "$project" && printf '%s' "$payload" | PLUGIN_ROOT="$plugin_root" bash "$dispatch" pre-compact)"

@@ -73,7 +73,7 @@ install:
 tests:
   installer: tests/test_install_project_template.sh
   backbone: tests/test_backbone_scripts.sh
-  close_state: tests/test_close_state.sh   # 22 fixtures: init/janitor, session_id resolution (stdin/env/explicit/hash), UNCLOSED marker, ledger gate, boot-recovery FIFO + per-SID receipt, concurrency (LOOP gate F3 + Stop-nag/--check F5 tests removed)
+  close_state: tests/test_close_state.sh   # Covers init/janitor, session_id priority (explicit/payload/Codex/Claude/hash), fail-loud missing identity, UNCLOSED marker, ledger gate, boot-recovery FIFO + per-SID receipt, and concurrency.
   brain_health: tests/test_brain_health.sh # 7 fixtures (F4): --report metric table + date, --due-check cadence (none/fresh/6d/10d), UNCLOSED count
   capability_report: tests/test_capability_report.sh # 8 fixtures: offered-from-DISPATCH (auto-wire: offered==wired, all-on silent), FALLBACK offered-from-fragment when no dispatch, wired detection, startup silent/surface, close + ADOPTION line, no-fragment safe, settings.local, auto-wire trumps partial settings (double-wire trap)
   scenarios: tests/scenarios/README.md
@@ -86,7 +86,7 @@ backbone_scripts:
     - scripts/memory_route.sh      # -> memory/CAN.md (kind=fact) | memory/KNOWLEDGE.md (lesson|calibration|decision|procedure), approval-gated; kind=calibration has a hard "boundary:" gate (scoped correction; origin cc_hermy)
     - scripts/session_note.sh      # -> memory/session.md (live session journal; --start / --note)
     - scripts/session_close.sh     # reads memory/* incl. session.md; composes + distils handoff
-    - scripts/close_state.sh       # per-session close-debt tracker (self-improvement loop); called by SessionStart/Stop/SessionEnd hooks + close skill --close-done + boot-recovery. Non-blocking by design (|| true): an advisory loop hook must never crash a session; a failing tracker degrades to manual close (reflex rule).
+    - scripts/close_state.sh       # per-session close-debt tracker (self-improvement loop); called by SessionStart/SessionEnd hooks + close skill --close-done + boot-recovery. Identity priority: explicit flag → hook payload → CODEX_THREAD_ID → CLAUDE_CODE_SESSION_ID; init/close-done fail loud without a real id. Hook callers remain advisory (|| true); manual close must surface binding failure.
     - scripts/gen_agents.sh        # subagents/ + manifest -> agents/ (SSOT). NOTE: agents//subagents/ merge deferred (F3 plan-review: source:/subagent_prompts/adapter contracts = risk > cosmetic gain).
     - scripts/brain_health.sh      # weekly brain-health observer (F4): --report writes memory/health/<date>.md; --due-check = SessionStart cadence advisory. Measures, never gates. Replaces the retired loop gate.
     - scripts/state_guard.sh       # state guard: watches for drift of state artifacts from reality. --release-drift (plugin.json vs latest CHANGELOG block, MAINTAINER) · --book-drift (living book vs plugin.json, MAINTAINER) · --adopter-drift (adopter's active version vs max in marketplace cache, ADOPTER opt-in); index/STATE/vision discovery after layer 1 (repo order). Advisory — never blocks.
